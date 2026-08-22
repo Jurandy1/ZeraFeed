@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { Link, createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { Link2, Trash2 } from "lucide-react";
+import { BookOpen, Link2, MessageCircle, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -12,6 +12,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { connectPage, disconnectPage } from "@/lib/zerafeed/connections.functions";
+import {
+  SUPPORT_PHONE_DISPLAY,
+  SUPPORT_WHATSAPP_URL,
+} from "@/lib/zerafeed/contact";
 import { formatDate } from "@/lib/zerafeed/format";
 import { useConnections } from "@/lib/zerafeed/hooks";
 import { LOCAL_MODE, LOCAL_PAGE_ID, LOCAL_PAGE_NAME } from "@/lib/zerafeed/local-config";
@@ -63,6 +67,20 @@ function ConnectionsPage() {
         <PageHeader
           title="Conexão"
           description="Modo local: EX Ladrão ligada à Graph API via token em local-config / .env."
+          actions={
+            <div className="flex flex-wrap gap-2">
+              <Button asChild variant="outline" size="sm">
+                <Link to="/tutorial">
+                  <BookOpen className="h-4 w-4" /> Tutorial
+                </Link>
+              </Button>
+              <Button asChild variant="outline" size="sm">
+                <a href={SUPPORT_WHATSAPP_URL} target="_blank" rel="noopener noreferrer">
+                  <MessageCircle className="h-4 w-4" /> {SUPPORT_PHONE_DISPLAY}
+                </a>
+              </Button>
+            </div>
+          }
         />
         <section className="panel flex items-center gap-4 p-4">
           <div className="flex h-12 w-12 items-center justify-center rounded-lg border border-border bg-muted text-xs font-semibold">
@@ -92,10 +110,31 @@ function ConnectionsPage() {
       <PageHeader
         title="Conexões"
         description="Vincule a Página do Facebook que será gerenciada. As credenciais ficam armazenadas de forma isolada e nunca são expostas ao navegador."
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button asChild variant="outline" size="sm">
+              <Link to="/tutorial">
+                <BookOpen className="h-4 w-4" /> Como obter ID e Token
+              </Link>
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <a href={SUPPORT_WHATSAPP_URL} target="_blank" rel="noopener noreferrer">
+                <MessageCircle className="h-4 w-4" /> {SUPPORT_PHONE_DISPLAY}
+              </a>
+            </Button>
+          </div>
+        }
       />
 
       <section className="panel p-6">
         <h2 className="text-sm font-semibold text-foreground">Conectar nova Página</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Precisa de ajuda? Veja o{" "}
+          <Link to="/tutorial" className="font-medium text-primary hover:underline">
+            tutorial completo
+          </Link>{" "}
+          ou fale no WhatsApp {SUPPORT_PHONE_DISPLAY}.
+        </p>
         <div className="mt-5 grid gap-4 lg:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor="page-id">ID da Página</Label>

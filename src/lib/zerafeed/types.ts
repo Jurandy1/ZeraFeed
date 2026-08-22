@@ -33,7 +33,8 @@ export interface ProtectionSettings {
 
 export const DEFAULT_PROTECTION: ProtectionSettings = {
   recentCount: 5,
-  engagementLimit: 30,
+  /** 0 = desativado. Valor baixo (ex.: 30) protege quase tudo em Páginas ativas. */
+  engagementLimit: 0,
 };
 
 export type ProtectionReason = "capa" | "recente" | "engajamento" | null;

@@ -2,6 +2,11 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import {
+  FREE_DELETE_LIMIT,
+  deletesRemaining,
+  isUnlimitedPlan,
+} from "./billing";
 
 export interface AccountOverview {
   profile: {
@@ -21,6 +26,12 @@ export interface AccountOverview {
   } | null;
   connectionsCount: number;
   totals: { deleted: number; jobs: number; failed: number; protected: number };
+  usage: {
+    unlimited: boolean;
+    deletesUsed: number;
+    deletesLimit: number;
+    deletesRemaining: number | null;
+  };
   lastJob: JobSummary | null;
 }
 
@@ -74,7 +85,7 @@ function toJob(row: JobRow): JobSummary {
 export const getAccountOverview = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<AccountOverview> => {
-    const [profileRes, subRes, connRes, jobsRes] = await Promise.all([
+    const [profileRes, subRes, connRes, jobsRes, deletedCountRes] = await Promise.all([
       context.supabase
         .from("profiles")
         .select("id, email, full_name, avatar_url, onboarding_completed")
@@ -93,6 +104,11 @@ export const getAccountOverview = createServerFn({ method: "GET" })
         .select(JOB_COLUMNS)
         .order("started_at", { ascending: false })
         .limit(50),
+      context.supabase
+        .from("cleanup_items")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", context.userId)
+        .eq("status", "deleted"),
     ]);
 
     const profileRow = profileRes.data as {
@@ -111,6 +127,8 @@ export const getAccountOverview = createServerFn({ method: "GET" })
       expires_at: string | null;
     } | null;
     const jobs = ((jobsRes.data ?? []) as JobRow[]).map(toJob);
+    const deletesUsed = deletedCountRes.count ?? jobs.reduce((sum, j) => sum + j.totalDeleted, 0);
+    const unlimited = isUnlimitedPlan(subRow?.plan, subRow?.status);
 
     return {
       profile: {
@@ -129,13 +147,26 @@ export const getAccountOverview = createServerFn({ method: "GET" })
             startedAt: subRow.started_at,
             expiresAt: subRow.expires_at,
           }
-        : null,
+        : {
+            plan: "free",
+            status: "trialing",
+            price: 0,
+            currency: "BRL",
+            startedAt: new Date().toISOString(),
+            expiresAt: null,
+          },
       connectionsCount: connRes.count ?? 0,
       totals: {
         jobs: jobs.length,
-        deleted: jobs.reduce((sum, j) => sum + j.totalDeleted, 0),
+        deleted: deletesUsed,
         failed: jobs.reduce((sum, j) => sum + j.totalFailed, 0),
         protected: jobs.reduce((sum, j) => sum + j.totalProtected, 0),
+      },
+      usage: {
+        unlimited,
+        deletesUsed,
+        deletesLimit: FREE_DELETE_LIMIT,
+        deletesRemaining: deletesRemaining(deletesUsed, unlimited),
       },
       lastJob: jobs[0] ?? null,
     };

@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { FREE_DELETE_LIMIT, isUnlimitedPlan } from "./billing";
 import type { DeleteResult, NormalizedPost } from "./types";
 
 async function resolveToken(userId: string, connectionId: string): Promise<{
@@ -26,6 +27,29 @@ async function resolveToken(userId: string, connectionId: string): Promise<{
     pageId: (data as { facebook_page_id: string }).facebook_page_id,
     pageName: (data as { page_name: string | null }).page_name,
   };
+}
+
+async function getDeleteQuota(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  userId: string,
+): Promise<{ unlimited: boolean; used: number; remaining: number }> {
+  const [{ data: sub }, { count }] = await Promise.all([
+    supabase
+      .from("subscriptions")
+      .select("plan, status")
+      .eq("user_id", userId)
+      .maybeSingle(),
+    supabase
+      .from("cleanup_items")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("status", "deleted"),
+  ]);
+  const unlimited = isUnlimitedPlan(sub?.plan, sub?.status);
+  const used = count ?? 0;
+  if (unlimited) return { unlimited: true, used, remaining: Number.MAX_SAFE_INTEGER };
+  return { unlimited: false, used, remaining: Math.max(0, FREE_DELETE_LIMIT - used) };
 }
 
 const searchSchema = z.object({
@@ -64,6 +88,18 @@ export const startCleanupJob = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => startSchema.parse(input))
   .handler(async ({ data, context }): Promise<{ jobId: string; backupId: string | null }> => {
+    const quota = await getDeleteQuota(context.supabase, context.userId);
+    if (!quota.unlimited && quota.remaining <= 0) {
+      throw new Error(
+        `Limite do teste grátis atingido (${FREE_DELETE_LIMIT} exclusões). Fale no WhatsApp para liberar o plano ilimitado.`,
+      );
+    }
+    if (!quota.unlimited && data.items.length > quota.remaining) {
+      throw new Error(
+        `Restam só ${quota.remaining} exclusões no teste grátis. Selecione no máximo ${quota.remaining} publicações ou libere o plano ilimitado.`,
+      );
+    }
+
     const { pageId, pageName } = await resolveToken(context.userId, data.connectionId);
 
     const { data: job, error } = await context.supabase
@@ -119,9 +155,32 @@ export const deleteChunk = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => chunkSchema.parse(input))
   .handler(async ({ data, context }): Promise<{ results: DeleteResult[] }> => {
+    const quota = await getDeleteQuota(context.supabase, context.userId);
+    if (!quota.unlimited && quota.remaining <= 0) {
+      throw new Error(
+        `Limite do teste grátis atingido (${FREE_DELETE_LIMIT} exclusões). Libere o plano ilimitado para continuar.`,
+      );
+    }
+
+    let postIds = data.postIds;
+    if (!quota.unlimited && postIds.length > quota.remaining) {
+      postIds = postIds.slice(0, quota.remaining);
+    }
+
     const { token } = await resolveToken(context.userId, data.connectionId);
     const { deletePosts } = await import("./graph.server");
-    const results = await deletePosts(data.postIds, token);
+    const results = await deletePosts(postIds, token);
+
+    // Itens cortados pelo limite ficam como falha explícita
+    for (const id of data.postIds) {
+      if (!postIds.includes(id)) {
+        results.push({
+          id,
+          ok: false,
+          error: `Limite do teste grátis (${FREE_DELETE_LIMIT}).`,
+        });
+      }
+    }
 
     for (const result of results) {
       await context.supabase

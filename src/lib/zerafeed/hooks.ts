@@ -40,3 +40,39 @@ export function downloadJson(fileName: string, content: string) {
   link.click();
   URL.revokeObjectURL(url);
 }
+
+const BACKUP_DB = "zerafeed-backups";
+const BACKUP_STORE = "files";
+
+function openBackupDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(BACKUP_DB, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(BACKUP_STORE)) {
+        db.createObjectStore(BACKUP_STORE, { keyPath: "id" });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error ?? new Error("IndexedDB indisponível."));
+  });
+}
+
+/** Backup silencioso no navegador — sem pedir permissão de download. */
+export async function saveBackupAutomatic(fileName: string, content: string): Promise<string> {
+  const id = `${Date.now()}-${fileName}`;
+  const db = await openBackupDb();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(BACKUP_STORE, "readwrite");
+    tx.objectStore(BACKUP_STORE).put({
+      id,
+      fileName,
+      content,
+      createdAt: new Date().toISOString(),
+    });
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error ?? new Error("Falha ao gravar backup."));
+  });
+  db.close();
+  return id;
+}

@@ -27,7 +27,7 @@ export function PostRow({
   return (
     <article
       className={cn(
-        "panel flex gap-4 p-4 transition-all duration-200",
+        "panel flex gap-3 p-3 transition-all duration-200 sm:gap-4 sm:p-4",
         selected && "border-primary/45 shadow-raised ring-1 ring-primary/20",
         post.protection && "bg-muted/40",
         !post.protection && "hover:shadow-raised",
@@ -44,19 +44,30 @@ export function PostRow({
         </div>
       )}
 
-      <div className="hidden h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-border bg-muted sm:block">
+      <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-border bg-muted sm:h-20 sm:w-20">
         {post.picture ? (
           <img
             src={post.picture}
             alt=""
             loading="lazy"
+            decoding="async"
+            referrerPolicy="no-referrer"
             className="h-full w-full object-cover"
+            onError={(event) => {
+              event.currentTarget.style.display = "none";
+              const fallback = event.currentTarget.nextElementSibling;
+              if (fallback instanceof HTMLElement) fallback.classList.remove("hidden");
+            }}
           />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center text-muted-foreground">
-            <ImageIcon className="h-4 w-4" />
-          </div>
-        )}
+        ) : null}
+        <div
+          className={cn(
+            "flex h-full w-full items-center justify-center text-muted-foreground",
+            post.picture && "hidden",
+          )}
+        >
+          <ImageIcon className="h-4 w-4" />
+        </div>
       </div>
 
       <div className="min-w-0 flex-1">
@@ -82,7 +93,7 @@ export function PostRow({
           {post.message || <span className="text-muted-foreground">Publicação sem texto</span>}
         </p>
 
-        <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
+        <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-muted-foreground sm:gap-x-4">
           <span className="inline-flex items-center gap-1">
             <Heart className="h-3.5 w-3.5" /> {formatNumber(post.reactions)}
           </span>

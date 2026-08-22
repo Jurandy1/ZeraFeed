@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { PageHeader } from "@/components/app/PageHeader";
+import { useAccount } from "@/components/app/AuthedLayout";
 import { EmptyState, ErrorState, LoadingState } from "@/components/app/States";
 import { ConfirmDeleteModal } from "@/components/cleaner/ConfirmDeleteModal";
 import { FilterPanel } from "@/components/cleaner/FilterPanel";
@@ -30,8 +31,9 @@ import {
   startCleanupJob,
 } from "@/lib/zerafeed/cleanup.functions";
 import { formatNumber } from "@/lib/zerafeed/format";
+import { FREE_DELETE_LIMIT, UPGRADE_WHATSAPP_URL } from "@/lib/zerafeed/billing";
 import { deletePosts, fetchPagePosts } from "@/lib/zerafeed/graph";
-import { downloadJson, useConnections } from "@/lib/zerafeed/hooks";
+import { downloadJson, saveBackupAutomatic, useConnections } from "@/lib/zerafeed/hooks";
 import {
   LOCAL_CONNECTION_ID,
   LOCAL_MODE,
@@ -67,11 +69,15 @@ const PAGE_SIZE = 25;
 
 function CleanerPage() {
   const queryClient = useQueryClient();
+  const { data: account } = useAccount();
   const connections = useConnections();
   const runSearch = useServerFn(searchPosts);
   const runStart = useServerFn(startCleanupJob);
   const runChunk = useServerFn(deleteChunk);
   const runFinish = useServerFn(finishCleanupJob);
+
+  const usage = account?.usage;
+  const remainingDeletes = usage?.unlimited ? null : (usage?.deletesRemaining ?? FREE_DELETE_LIMIT);
 
   const [connectionId, setConnectionId] = useState(LOCAL_MODE ? LOCAL_CONNECTION_ID : "");
   const [since, setSince] = useState("");
@@ -192,6 +198,22 @@ function CleanerPage() {
   async function onConfirmDelete() {
     if (selected.length === 0) return;
     if (!LOCAL_MODE && !effectiveId) return;
+    if (!LOCAL_MODE && remainingDeletes !== null && remainingDeletes <= 0) {
+      toast.error("Limite do teste grátis atingido", {
+        description: `Você já usou ${FREE_DELETE_LIMIT} exclusões. Libere o PRO no WhatsApp.`,
+        action: {
+          label: "WhatsApp",
+          onClick: () => window.open(UPGRADE_WHATSAPP_URL, "_blank"),
+        },
+      });
+      return;
+    }
+    if (!LOCAL_MODE && remainingDeletes !== null && selected.length > remainingDeletes) {
+      toast.error("Seleção acima do limite grátis", {
+        description: `Restam ${remainingDeletes} exclusões. Reduza a seleção ou libere o PRO.`,
+      });
+      return;
+    }
     setConfirmOpen(false);
     const ids = [...selected];
     const state: RunState = {
@@ -204,7 +226,34 @@ function CleanerPage() {
       running: true,
     };
     setRun(state);
-    downloadJson(`backup-antes-apagar-${Date.now()}.json`, buildBackup(ids));
+
+    const backupName = `backup-antes-apagar-${Date.now()}.json`;
+    const backupContent = buildBackup(ids);
+    try {
+      await saveBackupAutomatic(backupName, backupContent);
+      state.log = [...state.log, `Backup automático salvo: ${backupName}`];
+      setRun({ ...state });
+      toast.success("Backup automático salvo.", {
+        description: "Guardado no navegador sem pedir download.",
+      });
+    } catch {
+      // Fallback: se IndexedDB falhar, baixa uma vez (único download)
+      downloadJson(backupName, backupContent);
+      state.log = [...state.log, `Backup baixado (fallback): ${backupName}`];
+      setRun({ ...state });
+    }
+
+    const removeDeletedFromScreen = (okIds: string[]) => {
+      if (okIds.length === 0) return;
+      const gone = new Set(okIds);
+      setPosts((prev) => (prev ? prev.filter((p) => !gone.has(p.id)) : prev));
+      setSelected((prev) => prev.filter((id) => !gone.has(id)));
+      setStatuses((prev) => {
+        const next = { ...prev };
+        for (const id of okIds) delete next[id];
+        return next;
+      });
+    };
 
     try {
       if (LOCAL_MODE) {
@@ -229,6 +278,7 @@ function CleanerPage() {
             }
             return next;
           });
+          removeDeletedFromScreen(results.filter((r) => r.ok).map((r) => r.id));
           state.processed += results.length;
           state.deleted += results.filter((r) => r.ok).length;
           state.failed += results.filter((r) => !r.ok).length;
@@ -251,7 +301,7 @@ function CleanerPage() {
               id,
               excerpt: (decorated.find((p) => p.id === id)?.message ?? "").slice(0, 280),
             })),
-            backup: buildBackup(ids),
+            backup: backupContent,
           },
         });
 
@@ -269,6 +319,7 @@ function CleanerPage() {
             }
             return next;
           });
+          removeDeletedFromScreen(results.filter((r) => r.ok).map((r) => r.id));
           state.processed += results.length;
           state.deleted += results.filter((r) => r.ok).length;
           state.failed += results.filter((r) => !r.ok).length;
@@ -322,7 +373,7 @@ function CleanerPage() {
   }
 
   return (
-    <div className="space-y-8 pb-24">
+    <div className="space-y-5 pb-28 sm:space-y-6">
       <PageHeader
         title="Limpeza de publicações"
         description={
@@ -332,9 +383,28 @@ function CleanerPage() {
         }
       />
 
-      <section className="panel p-6">
-        <div className="grid gap-4 lg:grid-cols-4">
-          <div className="space-y-2 lg:col-span-2">
+      {!LOCAL_MODE && usage && !usage.unlimited && (
+        <div className="panel flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-medium text-foreground">
+              Teste grátis · {formatNumber(usage.deletesRemaining ?? 0)} exclusões restantes
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Usadas {formatNumber(usage.deletesUsed)} de {formatNumber(FREE_DELETE_LIMIT)}. Sem
+              cartão.
+            </p>
+          </div>
+          <Button asChild variant="outline" size="sm">
+            <a href={UPGRADE_WHATSAPP_URL} target="_blank" rel="noopener noreferrer">
+              Liberar ilimitado
+            </a>
+          </Button>
+        </div>
+      )}
+
+      <section className="panel p-4 sm:p-6">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="space-y-2 sm:col-span-2">
             <Label>Página</Label>
             <Select value={effectiveId} onValueChange={setConnectionId} disabled={LOCAL_MODE}>
               <SelectTrigger>
@@ -359,7 +429,7 @@ function CleanerPage() {
           </div>
         </div>
         <Button
-          className="mt-5"
+          className="mt-5 w-full sm:w-auto"
           disabled={searching || (!LOCAL_MODE && !effectiveId)}
           onClick={() => void onSearch()}
         >
@@ -374,9 +444,9 @@ function CleanerPage() {
       <div ref={progressRef}>{run && <ProgressPanel run={run} />}</div>
 
       {posts && (
-        <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
-          <aside className="panel h-fit p-5 lg:sticky lg:top-6">
-            <div className="flex items-center gap-2 pb-4">
+        <div className="grid gap-4 xl:grid-cols-[260px_minmax(0,1fr)] xl:gap-6">
+          <aside className="panel h-fit p-4 sm:p-5 xl:sticky xl:top-4">
+            <div className="flex items-center gap-2 pb-3 sm:pb-4">
               <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
               <h2 className="text-sm font-semibold text-foreground">Filtros</h2>
             </div>
@@ -390,7 +460,7 @@ function CleanerPage() {
           </aside>
 
           <div className="min-w-0 space-y-3">
-            <div className="panel sticky top-4 z-10 flex flex-col gap-3 p-3.5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="panel sticky top-14 z-10 flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between sm:p-3.5 md:top-4">
               <div className="min-w-0">
                 <p className="text-sm font-medium text-foreground">
                   {formatNumber(selected.length)} selecionadas
@@ -404,6 +474,7 @@ function CleanerPage() {
                 <Button
                   variant="outline"
                   size="sm"
+                  className="flex-1 sm:flex-none"
                   onClick={() =>
                     setSelected(
                       selected.length === selectableVisible.length
@@ -420,6 +491,7 @@ function CleanerPage() {
                 <Button
                   variant="outline"
                   size="sm"
+                  className="flex-1 sm:flex-none"
                   onClick={onBackup}
                   disabled={selected.length === 0}
                 >
@@ -428,10 +500,11 @@ function CleanerPage() {
                 <Button
                   variant="destructive"
                   size="sm"
+                  className="flex-1 sm:flex-none"
                   onClick={() => setConfirmOpen(true)}
                   disabled={selected.length === 0 || (run?.running ?? false)}
                 >
-                  <Trash2 className="h-4 w-4" /> Excluir selecionadas
+                  <Trash2 className="h-4 w-4" /> Excluir
                 </Button>
               </div>
             </div>

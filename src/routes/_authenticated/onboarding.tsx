@@ -1,17 +1,19 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
-import { CheckCircle2, Link2, ListChecks, ShieldCheck } from "lucide-react";
+import { BookOpen, CheckCircle2, Link2, ListChecks, MessageCircle, ShieldCheck } from "lucide-react";
 
 import { PageHeader } from "@/components/app/PageHeader";
 import { Button } from "@/components/ui/button";
+import { SUPPORT_PHONE_DISPLAY, SUPPORT_WHATSAPP_URL } from "@/lib/zerafeed/contact";
 import { useConnections } from "@/lib/zerafeed/hooks";
 
 export const Route = createFileRoute("/_authenticated/onboarding")({
   head: () => ({
     meta: [
       { title: "Primeiros passos — ZeraFeed" },
-      { name: "description", content: "Configure sua conta ZeraFeed em três etapas e prepare sua primeira limpeza." },
-      { property: "og:title", content: "Primeiros passos — ZeraFeed" },
-      { property: "og:description", content: "Guia rápido para conectar sua Página e iniciar a organização do feed." },
+      {
+        name: "description",
+        content: "Configure sua conta ZeraFeed e prepare sua primeira limpeza.",
+      },
     ],
   }),
   component: OnboardingPage,
@@ -19,10 +21,16 @@ export const Route = createFileRoute("/_authenticated/onboarding")({
 
 const STEPS = [
   {
+    icon: BookOpen,
+    title: "Siga o tutorial da Meta",
+    description:
+      "Obtenha o ID da Página e o Token permanente no Meta for Developers. O guia está no menu Tutorial.",
+  },
+  {
     icon: Link2,
     title: "Conecte sua Página",
     description:
-      "Informe o ID e o token da Página com as permissões oficiais da Meta. As credenciais ficam armazenadas de forma isolada no servidor.",
+      "Informe o ID e o token da Página em Conexões. As credenciais ficam armazenadas de forma isolada no servidor.",
   },
   {
     icon: ShieldCheck,
@@ -46,7 +54,7 @@ function OnboardingPage() {
     <div className="space-y-8">
       <PageHeader
         title="Primeiros passos"
-        description="Três etapas rápidas para deixar sua conta pronta para uso."
+        description="Configure sua conta e conecte a Página com o tutorial oficial."
       />
 
       <ol className="space-y-3">
@@ -61,7 +69,7 @@ function OnboardingPage() {
               </p>
               <p className="mt-1 text-sm text-muted-foreground">{step.description}</p>
             </div>
-            {index === 0 && connected && (
+            {index === 1 && connected && (
               <CheckCircle2 className="ml-auto h-5 w-5 shrink-0 text-success" />
             )}
           </li>
@@ -70,12 +78,19 @@ function OnboardingPage() {
 
       <div className="flex flex-wrap gap-2">
         <Button asChild>
+          <Link to="/tutorial">
+            <BookOpen className="h-4 w-4" /> Abrir tutorial
+          </Link>
+        </Button>
+        <Button asChild variant="outline">
           <Link to={connected ? "/cleaner" : "/connections"}>
             {connected ? "Iniciar primeira limpeza" : "Conectar minha Página"}
           </Link>
         </Button>
-        <Button variant="outline" asChild>
-          <Link to="/dashboard">Ir para o painel</Link>
+        <Button asChild variant="outline">
+          <a href={SUPPORT_WHATSAPP_URL} target="_blank" rel="noopener noreferrer">
+            <MessageCircle className="h-4 w-4" /> WhatsApp {SUPPORT_PHONE_DISPLAY}
+          </a>
         </Button>
       </div>
     </div>

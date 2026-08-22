@@ -11,7 +11,7 @@ import {
 import { PageHeader } from "@/components/app/PageHeader";
 import { StatCard } from "@/components/app/StatCard";
 import { EmptyState } from "@/components/app/States";
-import { useAccount, planStatusLabel } from "@/components/app/AuthedLayout";
+import { useAccount } from "@/components/app/AuthedLayout";
 import { Button } from "@/components/ui/button";
 import { formatDateTime, formatDuration, formatNumber } from "@/lib/zerafeed/format";
 import { useConnections } from "@/lib/zerafeed/hooks";
@@ -169,11 +169,14 @@ function DashboardPage() {
       <section className="panel flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-sm font-semibold text-foreground">
-            Plano {(data?.subscription?.plan ?? "pro").toUpperCase()} ·{" "}
-            {planStatusLabel(data?.subscription?.status)}
+            {data?.usage?.unlimited
+              ? "Plano PRO · ilimitado"
+              : `Teste grátis · ${data?.usage?.deletesRemaining ?? 300} exclusões restantes`}
           </p>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            R$ 20,00/mês · gerencie sua assinatura a qualquer momento.
+            {data?.usage?.unlimited
+              ? "R$ 20,00/mês · gerencie sua assinatura a qualquer momento."
+              : `Usadas ${data?.totals.deleted ?? 0} de 300. Crie conta grátis — pague só se precisar de mais.`}
           </p>
         </div>
         <Button variant="outline" size="sm" asChild>

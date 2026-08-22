@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import { LOCAL_MODE } from "@/lib/zerafeed/local-config";
+import { SUPPORT_PHONE, SUPPORT_PHONE_DISPLAY, SUPPORT_WHATSAPP_URL } from "@/lib/zerafeed/contact";
 
 export const Route = createFileRoute("/")({
   beforeLoad: () => {
@@ -30,7 +31,7 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Encontre, filtre, faça backup e exclua publicações elegíveis da sua Página do Facebook em poucos passos. Plano PRO por R$ 20/mês.",
+          "Crie conta grátis, conecte sua Página e exclua até 300 publicações no teste. Depois, PRO ilimitado por R$ 20/mês.",
       },
       { property: "og:title", content: "ZeraFeed — Controle suas publicações. Sem complicação." },
       {
@@ -163,7 +164,7 @@ function LandingPage() {
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <Button size="lg" asChild>
                   <Link to="/register">
-                    Começar por R$ 20/mês <ArrowRight className="h-4 w-4" />
+                    Criar conta grátis <ArrowRight className="h-4 w-4" />
                   </Link>
                 </Button>
                 <Button size="lg" variant="outline" asChild>
@@ -277,15 +278,38 @@ function LandingPage() {
         <section id="precos" className="mx-auto w-full max-w-6xl px-4 py-16 sm:px-6 lg:py-20">
           <div className="mx-auto max-w-md text-center">
             <h2 className="text-3xl font-semibold tracking-tight text-foreground">
-              Um plano, tudo incluído
+              Comece grátis
             </h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              Tudo o que você precisa para organizar suas publicações.
+              Qualquer pessoa cria conta sem pagar. 300 exclusões no teste.
             </p>
           </div>
-          <div className="mx-auto mt-10 max-w-md">
+          <div className="mx-auto mt-10 grid max-w-3xl gap-4 md:grid-cols-2">
             <div className="panel p-7 shadow-raised">
-              <p className="text-xs font-semibold uppercase tracking-wide text-primary">PRO</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-primary">Teste grátis</p>
+              <div className="mt-3 flex items-baseline gap-1">
+                <span className="stat-number text-5xl text-foreground">R$ 0</span>
+              </div>
+              <ul className="mt-6 space-y-2.5 text-sm text-foreground">
+                <li className="flex gap-2.5">
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" />
+                  Criar conta sem cartão
+                </li>
+                <li className="flex gap-2.5">
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" />
+                  300 exclusões por conta
+                </li>
+                <li className="flex gap-2.5">
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" />
+                  Backup e filtros inclusos
+                </li>
+              </ul>
+              <Button size="lg" className="mt-7 w-full" asChild>
+                <Link to="/register">Criar conta grátis</Link>
+              </Button>
+            </div>
+            <div className="panel p-7">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">PRO</p>
               <div className="mt-3 flex items-baseline gap-1">
                 <span className="stat-number text-5xl text-foreground">R$ 20</span>
                 <span className="text-sm text-muted-foreground">/mês</span>
@@ -297,12 +321,16 @@ function LandingPage() {
                     {item}
                   </li>
                 ))}
+                <li className="flex gap-2.5 text-sm text-foreground">
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" />
+                  Exclusões ilimitadas
+                </li>
               </ul>
-              <Button size="lg" className="mt-7 w-full" asChild>
-                <Link to="/register">Começar agora</Link>
+              <Button size="lg" variant="outline" className="mt-7 w-full" asChild>
+                <Link to="/register">Começar no grátis</Link>
               </Button>
               <p className="mt-3 text-center text-xs text-muted-foreground">
-                Cancelamento conforme as condições da assinatura.
+                Liberação PRO via WhatsApp após o teste.
               </p>
             </div>
           </div>
@@ -341,13 +369,21 @@ function LandingPage() {
             <a href="#recursos" className="transition-colors hover:text-foreground">Produto</a>
             <a href="#precos" className="transition-colors hover:text-foreground">Preços</a>
             <a href="#faq" className="transition-colors hover:text-foreground">FAQ</a>
-            <Link to="/support" className="transition-colors hover:text-foreground">Suporte</Link>
+            <a href="/tutorial.html" className="transition-colors hover:text-foreground">Tutorial</a>
+            <a
+              href={SUPPORT_WHATSAPP_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="transition-colors hover:text-foreground"
+            >
+              WhatsApp {SUPPORT_PHONE_DISPLAY}
+            </a>
             <Link to="/terms" className="transition-colors hover:text-foreground">Termos de Uso</Link>
             <Link to="/privacy" className="transition-colors hover:text-foreground">Privacidade</Link>
           </nav>
         </div>
         <div className="border-t border-border py-5 text-center text-xs text-muted-foreground">
-          © {new Date().getFullYear()} ZeraFeed. Todos os direitos reservados.
+          © {new Date().getFullYear()} ZeraFeed · Contato {SUPPORT_PHONE} · Todos os direitos reservados.
         </div>
       </footer>
     </div>

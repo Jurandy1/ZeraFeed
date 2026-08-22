@@ -99,7 +99,7 @@ function RegisterPage() {
   return (
     <AuthLayout
       title="Crie sua conta ZeraFeed."
-      subtitle="Plano PRO por R$ 20/mês. Comece conectando sua Página em poucos minutos."
+      subtitle="Crie grátis. 300 exclusões no teste — sem cartão."
       footer={
         <>
           Já possui uma conta?{" "}

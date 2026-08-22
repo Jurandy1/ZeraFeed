@@ -2,6 +2,7 @@ import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   BadgeDollarSign,
+  BookOpen,
   Eraser,
   History,
   LayoutDashboard,
@@ -26,6 +27,7 @@ const NAV_CLOUD = [
   { to: "/cleaner", label: "Limpeza", icon: Eraser },
   { to: "/history", label: "Histórico", icon: History },
   { to: "/connections", label: "Conexões", icon: Link2 },
+  { to: "/tutorial", label: "Tutorial", icon: BookOpen },
   { to: "/billing", label: "Assinatura", icon: BadgeDollarSign },
   { to: "/settings", label: "Configurações", icon: Settings },
   { to: "/support", label: "Suporte", icon: LifeBuoy },
@@ -35,6 +37,8 @@ const NAV_LOCAL = [
   { to: "/cleaner", label: "Limpeza", icon: Eraser },
   { to: "/dashboard", label: "Visão geral", icon: LayoutDashboard },
   { to: "/connections", label: "Conexão", icon: Link2 },
+  { to: "/tutorial", label: "Tutorial", icon: BookOpen },
+  { to: "/support", label: "Suporte", icon: LifeBuoy },
 ] as const;
 
 const NAV = LOCAL_MODE ? NAV_LOCAL : NAV_CLOUD;
@@ -58,13 +62,13 @@ function NavList({ onNavigate }: { onNavigate?: () => void }) {
             to={item.to}
             onClick={onNavigate}
             className={cn(
-              "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-150",
+              "flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors duration-150",
               active
                 ? "bg-primary-soft text-primary"
                 : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
             )}
           >
-            <item.icon className="h-[18px] w-[18px]" />
+            <item.icon className="h-[18px] w-[18px] shrink-0" />
             {item.label}
           </Link>
         );
@@ -108,10 +112,14 @@ function UserFooter({ user }: { user: ShellUser }) {
           </div>
         </div>
         <div className="mt-3 flex items-center justify-between border-t border-border pt-2.5">
-          <div>
-            <p className="text-xs font-semibold text-foreground">{user.planLabel}</p>
-            <p className="text-[11px] text-muted-foreground">
-              {LOCAL_MODE ? user.planStatus : `${BRL.format(20)}/mês · ${user.planStatus}`}
+          <div className="min-w-0">
+            <p className="truncate text-xs font-semibold text-foreground">{user.planLabel}</p>
+            <p className="truncate text-[11px] text-muted-foreground">
+              {LOCAL_MODE
+                ? user.planStatus
+                : user.planLabel === "Teste grátis"
+                  ? user.planStatus
+                  : `${BRL.format(20)}/mês · ${user.planStatus}`}
             </p>
           </div>
           <button
@@ -133,10 +141,18 @@ export function AppShell({ user, children }: { user: ShellUser; children: ReactN
 
   return (
     <div className="min-h-screen bg-background">
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[248px] flex-col border-r border-sidebar-border bg-sidebar lg:flex">
-        <div className="flex h-16 items-center border-b border-sidebar-border px-5">
-          <Link to={LOCAL_MODE ? "/cleaner" : "/dashboard"}>
-            <Logo />
+      {/* Sidebar fixa a partir de md — evita sumir em notebooks */}
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[240px] flex-col border-r border-sidebar-border bg-sidebar md:flex">
+        <div className="flex h-16 shrink-0 items-center border-b border-sidebar-border px-4">
+          <Link to={LOCAL_MODE ? "/cleaner" : "/dashboard"} className="min-w-0">
+            <Logo compact className="gap-0" />
+            <span className="sr-only">ZeraFeed</span>
+          </Link>
+          <Link
+            to={LOCAL_MODE ? "/cleaner" : "/dashboard"}
+            className="ml-2 truncate text-sm font-semibold text-foreground"
+          >
+            ZeraFeed
           </Link>
         </div>
         <div className="flex-1 overflow-y-auto p-3">
@@ -145,29 +161,31 @@ export function AppShell({ user, children }: { user: ShellUser; children: ReactN
         <UserFooter user={user} />
       </aside>
 
-      <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-border bg-surface/90 px-4 backdrop-blur lg:hidden">
+      <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-border bg-surface/95 px-3 backdrop-blur md:hidden">
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger asChild>
             <Button variant="ghost" size="icon" aria-label="Abrir menu">
               <Menu className="h-5 w-5" />
             </Button>
           </SheetTrigger>
-          <SheetContent side="left" className="w-[268px] p-0">
+          <SheetContent side="left" className="flex w-[min(100vw-3rem,280px)] flex-col p-0">
             <SheetTitle className="sr-only">Menu</SheetTitle>
-            <div className="flex h-16 items-center border-b border-sidebar-border px-5">
-              <Logo />
+            <div className="flex h-14 shrink-0 items-center border-b border-sidebar-border px-4">
+              <Logo compact />
+              <span className="ml-2 text-sm font-semibold">ZeraFeed</span>
             </div>
-            <div className="p-3">
+            <div className="flex-1 overflow-y-auto p-3">
               <NavList onNavigate={() => setOpen(false)} />
             </div>
             <UserFooter user={user} />
           </SheetContent>
         </Sheet>
-        <Logo />
+        <Logo compact />
+        <span className="truncate text-sm font-semibold">ZeraFeed</span>
       </header>
 
-      <main className="lg:pl-[248px]">
-        <div className="mx-auto w-full max-w-[1180px] px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+      <main className="md:pl-[240px]">
+        <div className="mx-auto w-full max-w-[1280px] px-3 py-4 sm:px-5 sm:py-6 lg:px-8">
           {children}
         </div>
       </main>

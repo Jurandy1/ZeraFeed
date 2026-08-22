@@ -1,12 +1,11 @@
 /**
- * Modo local = nossa realidade atual (EX Ladrão + token no front).
- * Liga o design ZeraFeed à Graph API sem Supabase.
- * Desligue (VITE_LOCAL_MODE=false) quando for usar o SaaS completo.
+ * Modo local = EX Ladrão + token no front (só desenvolvimento).
+ * Em produção (Vercel) deixe VITE_LOCAL_MODE=false ou omita — padrão é SaaS.
  */
 import type { PageConnection } from "./types";
 
 export const LOCAL_MODE =
-  (import.meta.env.VITE_LOCAL_MODE ?? "true").toString().toLowerCase() !== "false";
+  (import.meta.env.VITE_LOCAL_MODE ?? "false").toString().toLowerCase() === "true";
 
 export const LOCAL_PAGE_ID =
   (import.meta.env.VITE_LOCAL_PAGE_ID as string | undefined)?.trim() ||

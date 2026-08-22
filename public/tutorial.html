@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Guia de Conexão · ZeraFeed</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#111827;
+    --ink-2:#374151;
+    --muted:#6B7280;
+    --muted-2:#9CA3AF;
+    --line:#E5E7EB;
+    --line-soft:#F3F4F6;
+    --bg:#F9FAFB;
+    --card:#FFFFFF;
+    --brand:#4F46E5;
+    --brand-dark:#4338CA;
+    --brand-soft:#EEF2FF;
+    --brand-line:#C7D2FE;
+    --ok:#059669;
+    --ok-soft:#ECFDF5;
+    --ok-line:#A7F3D0;
+    --warn:#B45309;
+    --warn-soft:#FFFBEB;
+    --warn-line:#FDE68A;
+    --code-bg:#111827;
+    --code-fg:#E5E7EB;
+    --code-var:#A78BFA;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:'Inter',system-ui,-apple-system,sans-serif;
+    background:var(--bg);
+    color:var(--ink);
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+    font-feature-settings:"cv02","cv03","cv04","cv11";
+  }
+
+  /* header institucional */
+  .topbar{
+    background:var(--card);
+    border-bottom:1px solid var(--line);
+    padding:16px 32px;
+    position:sticky;top:0;z-index:10;
+  }
+  .topbar-inner{
+    max-width:960px;margin:0 auto;
+    display:flex;align-items:center;justify-content:space-between;
+  }
+  .brand{
+    display:flex;align-items:center;gap:12px;
+    font-weight:700;font-size:17px;letter-spacing:-.01em;color:var(--ink);
+    text-decoration:none;
+  }
+  .brand-mark{
+    width:36px;height:36px;border-radius:50%;
+    overflow:hidden;background:#000;
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:0 0 0 1px var(--line);
+  }
+  .brand-mark img{width:100%;height:100%;object-fit:cover;display:block}
+  .breadcrumb{
+    font-size:13px;color:var(--muted);font-weight:500;
+  }
+  .breadcrumb b{color:var(--ink);font-weight:600}
+
+  .container{max-width:820px;margin:0 auto;padding:48px 24px 120px}
+
+  /* cabeçalho do documento */
+  .doc-header{margin-bottom:48px;padding-bottom:32px;border-bottom:1px solid var(--line)}
+  .doc-eyebrow{
+    display:inline-flex;align-items:center;gap:8px;
+    font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;
+    color:var(--brand);background:var(--brand-soft);
+    padding:6px 12px;border-radius:6px;margin-bottom:20px;
+    border:1px solid var(--brand-line);
+  }
+  h1{
+    font-size:36px;font-weight:700;letter-spacing:-.025em;line-height:1.2;
+    margin-bottom:14px;color:var(--ink);
+  }
+  .doc-lead{
+    font-size:17px;color:var(--ink-2);max-width:680px;line-height:1.6;
+  }
+  .doc-meta{
+    display:flex;gap:24px;margin-top:24px;
+    font-size:13px;color:var(--muted);
+  }
+  .doc-meta-item{display:flex;align-items:center;gap:6px}
+  .doc-meta-item b{color:var(--ink-2);font-weight:600}
+
+  /* índice */
+  .toc{
+    background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:20px 24px;margin-bottom:48px;
+  }
+  .toc-title{
+    font-size:11px;font-weight:700;color:var(--muted);
+    letter-spacing:.06em;text-transform:uppercase;margin-bottom:14px;
+  }
+  .toc-list{list-style:none;display:grid;gap:2px}
+  .toc-list a{
+    display:flex;align-items:center;gap:14px;
+    padding:10px 12px;border-radius:8px;
+    color:var(--ink-2);text-decoration:none;font-size:14px;font-weight:500;
+    transition:background .12s,color .12s;
+  }
+  .toc-list a:hover{background:var(--brand-soft);color:var(--brand)}
+  .toc-num{
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;color:var(--muted-2);font-weight:600;
+    min-width:28px;
+  }
+  .toc-list a:hover .toc-num{color:var(--brand)}
+
+  /* seções */
+  .section{margin-bottom:56px;scroll-margin-top:80px}
+  .section-head{margin-bottom:28px;padding-bottom:16px;border-bottom:1px solid var(--line)}
+  .section-num{
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;color:var(--muted);font-weight:600;
+    letter-spacing:.06em;margin-bottom:6px;text-transform:uppercase;
+  }
+  h2{
+    font-size:26px;font-weight:700;letter-spacing:-.02em;line-height:1.25;
+    color:var(--ink);margin-bottom:8px;
+  }
+  .section-desc{
+    font-size:15px;color:var(--muted);line-height:1.55;
+  }
+
+  /* passos */
+  .step{
+    display:grid;grid-template-columns:auto 1fr;gap:20px;
+    padding:24px 0;
+    border-bottom:1px solid var(--line-soft);
+  }
+  .step:last-child{border-bottom:none}
+  .step-marker{
+    display:flex;flex-direction:column;align-items:center;
+  }
+  .step-marker-num{
+    width:32px;height:32px;border-radius:8px;
+    background:var(--card);border:1px solid var(--line);
+    color:var(--ink);font-weight:700;font-size:14px;
+    display:flex;align-items:center;justify-content:center;
+    font-family:'JetBrains Mono',monospace;
+  }
+  .step-content h3{
+    font-size:16px;font-weight:600;margin-bottom:8px;color:var(--ink);
+    letter-spacing:-.01em;
+  }
+  .step-content p{
+    color:var(--ink-2);font-size:15px;margin-bottom:10px;line-height:1.6;
+  }
+  .step-content p:last-child{margin-bottom:0}
+  .step-content b{color:var(--ink);font-weight:600}
+  .step-content ul{list-style:none;margin:8px 0}
+  .step-content ul li{
+    padding:4px 0 4px 20px;position:relative;color:var(--ink-2);font-size:15px;
+  }
+  .step-content ul li::before{
+    content:"";position:absolute;left:6px;top:14px;
+    width:4px;height:4px;border-radius:50%;background:var(--muted-2);
+  }
+
+  /* botão-link externo */
+  .btn-link{
+    display:inline-flex;align-items:center;gap:8px;
+    color:var(--brand);text-decoration:none;font-weight:600;font-size:14px;
+    background:var(--brand-soft);border:1px solid var(--brand-line);
+    padding:8px 14px;border-radius:8px;margin-top:6px;
+    transition:background .12s;
+  }
+  .btn-link:hover{background:#E0E7FF}
+  .btn-link::after{content:"↗";font-size:14px;opacity:.7}
+
+  /* código */
+  code{
+    font-family:'JetBrains Mono',monospace;font-size:13px;
+    background:var(--line-soft);color:var(--ink);
+    padding:2px 6px;border-radius:4px;font-weight:500;
+    border:1px solid var(--line);
+  }
+  .code-block{
+    background:var(--code-bg);color:var(--code-fg);
+    font-family:'JetBrains Mono',monospace;font-size:13px;
+    padding:16px 18px;border-radius:8px;margin:12px 0;
+    overflow-x:auto;line-height:1.7;
+    position:relative;
+    border:1px solid #1F2937;
+  }
+  .code-block .var{color:#F472B6;font-weight:500}
+  .code-block .k{color:#93C5FD}
+  .copy-btn{
+    position:absolute;top:10px;right:10px;
+    background:#1F2937;border:1px solid #374151;
+    color:var(--code-fg);
+    font-size:11px;font-weight:600;padding:6px 10px;border-radius:6px;
+    cursor:pointer;font-family:'Inter',sans-serif;
+    transition:background .12s;
+  }
+  .copy-btn:hover{background:#374151}
+  .copy-btn.copied{background:var(--ok);color:#fff;border-color:var(--ok)}
+
+  /* callouts */
+  .callout{
+    display:flex;gap:14px;padding:14px 18px;border-radius:8px;
+    margin:16px 0;font-size:14px;line-height:1.6;
+    border:1px solid;
+  }
+  .callout-ico{
+    flex-shrink:0;width:20px;height:20px;border-radius:4px;
+    display:flex;align-items:center;justify-content:center;
+    font-size:12px;font-weight:700;margin-top:1px;
+  }
+  .callout b{font-weight:600}
+  .callout.info{background:var(--brand-soft);color:#312E81;border-color:var(--brand-line)}
+  .callout.info .callout-ico{background:var(--brand);color:#fff}
+  .callout.warn{background:var(--warn-soft);color:#78350F;border-color:var(--warn-line)}
+  .callout.warn .callout-ico{background:var(--warn);color:#fff}
+  .callout.ok{background:var(--ok-soft);color:#065F46;border-color:var(--ok-line)}
+  .callout.ok .callout-ico{background:var(--ok);color:#fff}
+
+  /* permissões */
+  .perm-list{
+    background:var(--card);border:1px solid var(--line);border-radius:10px;
+    padding:4px;margin:14px 0;
+  }
+  .perm-row{
+    display:flex;align-items:center;justify-content:space-between;gap:16px;
+    padding:12px 14px;border-radius:6px;
+  }
+  .perm-row + .perm-row{border-top:1px solid var(--line-soft)}
+  .perm-name{
+    font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:500;
+    color:var(--brand);
+  }
+  .perm-desc{font-size:13px;color:var(--muted);text-align:right}
+
+  /* mockup do sistema */
+  .mockup-wrap{margin:24px 0}
+  .mockup-caption{
+    font-size:12px;color:var(--muted);font-weight:500;
+    text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;
+  }
+  .mockup{
+    border:1px solid var(--line);border-radius:12px;overflow:hidden;
+    background:var(--card);box-shadow:0 4px 20px -8px rgba(17,24,39,.08);
+  }
+  .mockup-top{
+    background:var(--card);border-bottom:1px solid var(--line);
+    padding:14px 20px;display:flex;align-items:center;gap:10px;
+  }
+  .mockup-dot{width:10px;height:10px;border-radius:50%;background:var(--line)}
+  .mockup-dot:nth-child(2){background:#FDE68A}
+  .mockup-dot:nth-child(3){background:#A7F3D0}
+  .mockup-url{
+    flex:1;margin-left:12px;background:var(--line-soft);
+    padding:5px 10px;border-radius:5px;font-size:12px;color:var(--muted);
+    font-family:'JetBrains Mono',monospace;
+  }
+  .mockup-body{padding:24px}
+  .mockup-title{font-size:20px;font-weight:700;color:var(--ink);margin-bottom:4px}
+  .mockup-sub{font-size:13px;color:var(--muted);margin-bottom:20px}
+  .mockup-card{
+    background:var(--bg);border:1px solid var(--line);border-radius:10px;
+    padding:20px;
+  }
+  .mockup-card-title{font-size:14px;font-weight:600;color:var(--ink);margin-bottom:16px}
+  .mockup-fields{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:600px){.mockup-fields{grid-template-columns:1fr}}
+  .mockup-field-label{
+    font-size:12px;font-weight:600;color:var(--ink);margin-bottom:6px;
+    display:flex;align-items:center;gap:8px;
+  }
+  .mockup-field-badge{
+    background:var(--brand);color:#fff;
+    font-size:10px;font-weight:700;padding:2px 6px;border-radius:10px;
+    font-family:'JetBrains Mono',monospace;
+  }
+  .mockup-input{
+    background:var(--card);border:1px solid var(--line);border-radius:6px;
+    padding:8px 10px;font-size:12px;color:var(--muted);
+    font-family:'JetBrains Mono',monospace;
+  }
+  .mockup-input.filled{color:var(--ink);background:var(--brand-soft);border-color:var(--brand-line)}
+  .mockup-hint{font-size:11px;color:var(--muted);margin-top:5px}
+  .mockup-btn{
+    background:var(--brand);color:#fff;font-weight:600;
+    padding:8px 16px;border-radius:6px;font-size:13px;
+    display:inline-block;margin-top:16px;
+  }
+
+  /* legenda com números */
+  .legend{
+    background:var(--card);border:1px solid var(--line);border-radius:10px;
+    margin-top:16px;overflow:hidden;
+  }
+  .legend-row{
+    display:grid;grid-template-columns:32px 1fr;gap:14px;padding:14px 16px;
+    align-items:flex-start;
+  }
+  .legend-row + .legend-row{border-top:1px solid var(--line-soft)}
+  .legend-num{
+    width:24px;height:24px;border-radius:50%;
+    background:var(--brand);color:#fff;
+    font-weight:700;font-size:12px;
+    display:flex;align-items:center;justify-content:center;
+    font-family:'JetBrains Mono',monospace;
+  }
+  .legend-content h4{
+    font-size:14px;font-weight:600;color:var(--ink);margin-bottom:2px;
+  }
+  .legend-content p{font-size:13px;color:var(--muted);line-height:1.55}
+
+  /* seção final resumo */
+  .summary{
+    background:var(--card);border:1px solid var(--brand-line);border-radius:12px;
+    padding:32px;margin-top:32px;
+    background-image:linear-gradient(135deg,var(--brand-soft) 0%,var(--card) 100%);
+  }
+  .summary h2{color:var(--brand-dark);margin-bottom:8px}
+  .summary > p{color:var(--ink-2);margin-bottom:24px;font-size:15px}
+  .summary-grid{display:grid;gap:12px}
+  .summary-item{
+    background:var(--card);border:1px solid var(--line);border-radius:8px;
+    padding:14px 16px;display:flex;gap:14px;align-items:flex-start;
+  }
+  .summary-item-ico{
+    flex-shrink:0;width:20px;height:20px;border-radius:50%;
+    background:var(--ok);color:#fff;font-size:12px;font-weight:700;
+    display:flex;align-items:center;justify-content:center;margin-top:2px;
+  }
+  .summary-item-content h4{font-size:14px;font-weight:600;color:var(--ink);margin-bottom:2px}
+  .summary-item-content p{font-size:13px;color:var(--muted);line-height:1.5}
+
+  /* rodapé */
+  footer{
+    text-align:center;margin-top:64px;padding-top:32px;
+    border-top:1px solid var(--line);
+    color:var(--muted);font-size:13px;
+  }
+  footer a{color:var(--brand);text-decoration:none;font-weight:600}
+  footer .divider{margin:0 8px;opacity:.5}
+
+  @media(max-width:640px){
+    h1{font-size:28px}
+    h2{font-size:22px}
+    .doc-lead{font-size:15px}
+    .container{padding:32px 20px 80px}
+    .topbar{padding:14px 20px}
+    .doc-meta{flex-direction:column;gap:8px}
+  }
+</style>
+</head>
+<body>
+
+<!-- header -->
+<header class="topbar">
+  <div class="topbar-inner">
+    <a href="/" class="brand">
+      <div class="brand-mark">
+        <img src="/logo-zerafeed.png" alt="ZeraFeed">
+      </div>
+      ZeraFeed
+    </a>
+    <div class="breadcrumb">Documentação <span style="margin:0 8px;color:var(--muted-2)">/</span> <b>Conectar Página</b></div>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- header do documento -->
+  <div class="doc-header">
+    <span class="doc-eyebrow">Guia de Integração</span>
+    <h1>Conexão de Página do Facebook</h1>
+    <p class="doc-lead">
+      Este documento apresenta o procedimento oficial para vincular uma Página do Facebook ao ZeraFeed.
+      A integração utiliza a Graph API da Meta em conformidade com os Termos da Plataforma vigentes.
+      O processo é realizado uma única vez por Página e leva aproximadamente quinze minutos.
+    </p>
+    <div class="doc-meta">
+      <div class="doc-meta-item">⏱ <b>15 minutos</b></div>
+      <div class="doc-meta-item">🔒 <b>API oficial da Meta</b></div>
+      <div class="doc-meta-item">💾 <b>Configuração única</b></div>
+    </div>
+  </div>
+
+  <!-- índice -->
+  <nav class="toc">
+    <div class="toc-title">Neste documento</div>
+    <ul class="toc-list">
+      <li><a href="#s1"><span class="toc-num">01</span>Criação do aplicativo no Meta for Developers</a></li>
+      <li><a href="#s2"><span class="toc-num">02</span>Localização do ID da Página</a></li>
+      <li><a href="#s3"><span class="toc-num">03</span>Geração do Token de Acesso</a></li>
+      <li><a href="#s4"><span class="toc-num">04</span>Conversão em Token Permanente</a></li>
+      <li><a href="#s5"><span class="toc-num">05</span>Vinculação no ZeraFeed</a></li>
+    </ul>
+  </nav>
+
+  <!-- SEÇÃO 1 -->
+  <section id="s1" class="section">
+    <div class="section-head">
+      <div class="section-num">Parte 01</div>
+      <h2>Criação do aplicativo no Meta for Developers</h2>
+      <p class="section-desc">
+        O aplicativo é a identidade oficial que representa você perante a Meta.
+        A criação é realizada uma única vez e o mesmo aplicativo permanece disponível para todas as suas Páginas.
+      </p>
+    </div>
+
+    <div class="step">
+      <div class="step-marker"><div class="step-marker-num">1</div></div>
+      <div class="step-content">
+        <h3>Acesso ao portal de desenvolvedores</h3>
+        <p>Efetue login em <b>developers.facebook.com</b> utilizando a mesma conta do Facebook que administra a Página a ser conectada. Caso este seja o primeiro acesso, o portal apresentará um assistente rápido para habilitação da conta como desenvolvedor, mediante confirmação de e-mail e aceite dos termos. O procedimento é gratuito e não impõe qualquer obrigação contratual.</p>
+        <a class="btn-link" href="https://developers.facebook.com" target="_blank" rel="noopener">Abrir Meta for Developers</a>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-marker"><div class="step-marker-num">2</div></div>
+      <div class="step-content">
+        <h3>Início da criação do aplicativo</h3>
+        <p>No portal, acesse <b>Meus Apps</b> e acione o botão <b>Criar App</b>. Será apresentado um assistente composto por cinco etapas sequenciais, detalhadas a seguir.</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-marker"><div class="step-marker-num">3</div></div>
+      <div class="step-content">
+        <h3>Etapa 1 · Detalhes do app</h3>
+        <p>Informe uma denominação para o aplicativo, a exemplo de <code>ZeraFeed Integração</code>, e confirme o e-mail de contato. Este endereço será utilizado pela Meta para comunicações oficiais relativas ao aplicativo.</p>
+        <div class="mockup-wrap">
+          <div class="mockup-caption">Tela · Detalhes do app</div>
+          <img src="prints/01_detalhes.png" alt="Tela Detalhes do app do assistente de criação da Meta" style="width:100%;border-radius:8px;border:1px solid var(--line);display:block">
+        </div>
+        <p>Ao final, acione <b>Avançar</b>.</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-marker"><div class="step-marker-num">4</div></div>
+      <div class="step-content">
+        <h3>Etapa 2 · Casos de uso</h3>
+        <p>No filtro lateral, selecione <b>Gerenciamento de conteúdo</b>. Dentre as opções apresentadas, marque exclusivamente <b>Gerenciar tudo na sua Página</b>. Esta seleção habilita o conjunto de permissões necessárias à operação do ZeraFeed. Nenhuma outra opção deve ser marcada nesta etapa.</p>
+        <div class="mockup-wrap">
+          <div class="mockup-caption">Tela · Casos de uso</div>
+          <img src="prints/02_casos_uso.png" alt="Tela de seleção de casos de uso, com Gerenciar tudo na sua Página marcado" style="width:100%;border-radius:8px;border:1px solid var(--line);display:block">
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-marker"><div class="step-marker-num">5</div></div>
+      <div class="step-content">
+        <h3>Etapa 3 · Empresa</h3>
+        <p>Nesta tela, o portal solicitará a vinculação do aplicativo a um portfólio empresarial. Selecione <b>Ainda não quero me conectar a um portfólio empresarial</b>. A vinculação torna-se exigível somente na hipótese de publicação do aplicativo para uso por terceiros, situação distinta do procedimento aqui contemplado.</p>
+        <div class="mockup-wrap">
+          <div class="mockup-caption">Tela · Portfólio empresarial</div>
+          <img src="prints/03_empresa.png" alt="Tela de seleção de portfólio empresarial" style="width:100%;border-radius:8px;border:1px solid var(--line);display:block">
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-marker"><div class="step-marker-num">6</div></div>
+      <div class="step-content">
+        <h3>Etapa 4 · Requisitos</h3>
+        <p>Tela de caráter meramente informativo. O portal exibirá a mensagem <i>Nenhum requisito identificado</i>, o que confirma a viabilidade da configuração escolhida. Acione <b>Avançar</b>.</p>
+        <div class="mockup-wrap">
+          <div class="mockup-caption">Tela · Requisitos de publicação</div>
+          <img src="prints/04_requisitos.png" alt="Tela informativa de requisitos, sem exigências pendentes" style="width:100%;border-radius:8px;border:1px solid var(--line);display:block">
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-marker"><div class="step-marker-num">7</div></div>
+      <div class="step-content">
+        <h3>Etapa 5 · Visão geral e criação</h3>
+        <p>O portal apresentará o resumo de todas as configurações realizadas. Após conferência, acione <b>Criar aplicativo</b>. Poderá ser solicitada a senha da conta do Facebook para confirmação da operação.</p>
+        <div class="mockup-wrap">
+          <div class="mockup-caption">Tela · Visão geral</div>
+          <img src="prints/05_visao_geral.png" alt="Tela de visão geral com o resumo das configurações do aplicativo" style="width:100%;border-radius:8px;border:1px solid var(--line);display:block">
+        </div>
+      </div>
+    </div>
+
+    <div class="callout info">
+      <div class="callout-ico">i</div>
+      <div>Após a criação, o portal poderá exibir avisos sobre <b>verificação de empresa</b> ou <b>análise do aplicativo</b>. Ambos os procedimentos aplicam-se exclusivamente à publicação do aplicativo para terceiros e devem ser desconsiderados nesta fase. O aplicativo permanece plenamente operacional no modo de desenvolvimento por prazo indeterminado.</div>
+    </div>
+
+    <div class="step">
+      <div class="step-marker"><div class="step-marker-num">8</div></div>
+      <div class="step-content">
+        <h3>Registro das credenciais do aplicativo</h3>
+        <p>Com o aplicativo criado, o portal apresentará o painel de administração. No menu lateral esquerdo, acesse <b>Configurações do App</b> e, em seguida, a subseção <b>Básico</b>. Nesta página encontram-se as duas credenciais que deverão ser copiadas e armazenadas em local seguro para uso na Parte 04 deste procedimento.</p>
+        <div class="mockup-wrap">
+          <div class="mockup-caption">Tela · Configurações do App › Básico</div>
+          <img src="prints/06_painel_credenciais.png" alt="Painel de configurações básicas do aplicativo, com destaque para ID e Chave Secreta" style="width:100%;border-radius:8px;border:1px solid var(--line);display:block">
+        </div>
+        <div class="perm-list">
+          <div class="perm-row">
+            <span class="perm-name">ID do Aplicativo</span>
+            <span class="perm-desc">Sequência numérica exibida diretamente na tela</span>
+          </div>
+          <div class="perm-row">
+            <span class="perm-name">Chave Secreta do Aplicativo</span>
+            <span class="perm-desc">Requer acionamento do botão <b>Mostrar</b> e confirmação de senha</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout warn">
+      <div class="callout-ico">!</div>
+      <div><b>Recomendação de segurança.</b> A Chave Secreta do Aplicativo possui caráter sigiloso equivalente ao de uma senha e não deve ser transmitida em canais de comunicação, correio eletrônico ou capturas de tela compartilhadas. Em caso de exposição indevida, promova a redefinição imediata mediante a opção <b>Redefinir</b> disponível na mesma tela. A operação invalida a chave anterior no ato.</div>
+    </div>
+  </section>
+
+  <!-- SEÇÃO 2 -->
+  <section id="s2" class="section">
+    <div class="section-head">
+      <div class="section-num">Parte 02</div>
+      <h2>Localização do ID da Página</h2>
+      <p class="section-desc">
+        O ID da Página é o identificador numérico exigido pelo ZeraFeed no primeiro dos dois campos de conexão.
+        Trata-se de uma informação pública, exibida diretamente na seção institucional da própria Página.
+      </p>
+    </div>
+
+    <div class="step">
+      <div class="step-marker"><div class="step-marker-num">1</div></div>
+      <div class="step-content">
+        <h3>Acesso à Página como administrador</h3>
+        <p>Navegue até a Página que será conectada ao ZeraFeed e acesse a aba <b>Sobre</b>, disponível no menu superior da Página.</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-marker"><div class="step-marker-num">2</div></div>
+      <div class="step-content">
+        <h3>Consulta à seção "Transparência da Página"</h3>
+        <p>No menu lateral esquerdo da aba <b>Sobre</b>, selecione a opção <b>Transparência da Página</b>. O painel exibirá um bloco denominado <b>Identificação da Página</b>, contendo a sequência numérica que constitui o ID.</p>
+        <div class="mockup-wrap">
+          <div class="mockup-caption">Aba Sobre · Transparência da Página</div>
+          <img src="prints/07_id_pagina.png" alt="Aba Sobre da Página, seção Transparência da Página, com destaque para o bloco de Identificação da Página" style="width:100%;border-radius:8px;border:1px solid var(--line);display:block">
+        </div>
+        <p>Na tela acima, o ID corresponde ao número exibido logo acima do rótulo <b>Identificação da Página</b>. Trata-se de uma sequência de aproximadamente dezesseis dígitos, no formato ilustrado a seguir.</p>
+        <div class="code-block"><span class="var">1628634290760049</span></div>
+        <p>Registre este valor. Ele será inserido no campo <b>ID da Página</b> do formulário de conexão do ZeraFeed, apresentado na Parte 05 deste documento.</p>
+      </div>
+    </div>
+
+    <div class="callout info">
+      <div class="callout-ico">i</div>
+      <div>Alternativamente, o ID da Página encontra-se disponível no <b>Meta Business Suite</b> (<a href="https://business.facebook.com" target="_blank" style="color:inherit;text-decoration:underline">business.facebook.com</a>), na aba de configurações institucionais da Página. Ambas as fontes retornam o mesmo valor.</div>
+    </div>
+  </section>
+
+  <!-- SEÇÃO 3 -->
+  <section id="s3" class="section">
+    <div class="section-head">
+      <div class="section-num">Parte 03</div>
+      <h2>Geração do Token de Acesso</h2>
+      <p class="section-desc">
+        O Token de Acesso é a credencial que autoriza o ZeraFeed a operar sobre sua Página em seu nome,
+        respeitando estritamente as permissões que você conceder.
+      </p>
+    </div>
+
+    <div class="step">
+      <div class="step-marker"><div class="step-marker-num">1</div></div>
+      <div class="step-content">
+        <h3>Acesso ao Graph API Explorer</h3>
+        <p>Ferramenta oficial disponibilizada pela Meta para geração assistida de tokens. Acesse mediante o link a seguir e mantenha a aba aberta durante toda a Parte 03.</p>
+        <a class="btn-link" href="https://developers.facebook.com/tools/explorer" target="_blank" rel="noopener">Abrir Graph API Explorer</a>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-marker"><div class="step-marker-num">2</div></div>
+      <div class="step-content">
+        <h3>Seleção do aplicativo</h3>
+        <p>No painel de configuração situado à direita da tela, localize o rótulo <b>App da Meta</b>. Acione o campo suspenso e, na lista apresentada, selecione o aplicativo criado na Parte 01 (a exemplo de <code>Deletarpostagens</code> ou <code>ZeraFeed Integração</code>).</p>
+        <div class="mockup-wrap">
+          <div class="mockup-caption">Graph API Explorer · Seleção do aplicativo</div>
+          <img src="prints/08_selecionar_app.png" alt="Graph API Explorer com o campo App da Meta expandido e o aplicativo selecionado" style="width:100%;border-radius:8px;border:1px solid var(--line);display:block">
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-marker"><div class="step-marker-num">3</div></div>
+      <div class="step-content">
+        <h3>Adição das permissões</h3>
+        <p>Ainda no painel à direita, localize o campo <b>Adicionar uma permissão</b>. Ao acioná-lo, será apresentada a relação completa das permissões disponíveis, agrupadas por escopo. Marque as três permissões relacionadas a seguir.</p>
+        <div class="perm-list">
+          <div class="perm-row">
+            <span class="perm-name">pages_manage_posts</span>
+            <span class="perm-desc">Listagem e exclusão de publicações</span>
+          </div>
+          <div class="perm-row">
+            <span class="perm-name">pages_read_engagement</span>
+            <span class="perm-desc">Leitura de curtidas, comentários e compartilhamentos</span>
+          </div>
+          <div class="perm-row">
+            <span class="perm-name">pages_manage_engagement</span>
+            <span class="perm-desc">Gestão das interações da Página</span>
+          </div>
+        </div>
+        <div class="mockup-wrap">
+          <div class="mockup-caption">Graph API Explorer · Permissões marcadas</div>
+          <img src="prints/09_permissoes.png" alt="Lista de permissões da Graph API com as três permissões necessárias marcadas" style="width:100%;border-radius:8px;border:1px solid var(--line);display:block">
+        </div>
+        <p>Após a marcação, o campo de resumo exibirá a indicação <b>3 opções selecionadas</b>, o que confirma a correta configuração do escopo.</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-marker"><div class="step-marker-num">4</div></div>
+      <div class="step-content">
+        <h3>Acionamento do botão "Generate Access Token"</h3>
+        <p>Concluída a configuração, acione o botão azul <b>Generate Access Token</b>, localizado imediatamente abaixo do campo do token. A plataforma apresentará janela modal de autorização oficial do Facebook, na qual as permissões solicitadas deverão ser concedidas.</p>
+      </div>
+    </div>
+
+    <div class="callout warn">
+      <div class="callout-ico">!</div>
+      <div><b>Etapa crítica.</b> A janela de autorização exibirá a relação das Páginas administradas pela sua conta. É indispensável que a Página desejada seja <b>expressamente marcada</b> nessa lista. O prosseguimento sem a seleção resulta em token tecnicamente válido, porém desprovido de acesso à Página, o que inviabiliza a totalidade das operações subsequentes.</div>
+    </div>
+
+    <div class="step">
+      <div class="step-marker"><div class="step-marker-num">5</div></div>
+      <div class="step-content">
+        <h3>Cópia do token gerado</h3>
+        <p>Após a autorização, o token será apresentado no campo <b>Token de acesso</b>, iniciando pela sequência <code>EAA</code>. Selecione integralmente o conteúdo do campo mediante o atalho <b>Ctrl + A</b> e copie com <b>Ctrl + C</b>. A atenção quanto à cópia integral é essencial, uma vez que a supressão acidental de caracteres compromete o funcionamento do token nas etapas subsequentes.</p>
+        <p>O token ora obtido possui validade aproximada de uma hora, período no qual deverá ser convertido na credencial permanente conforme procedimento descrito na Parte 04.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- SEÇÃO 4 -->
+  <section id="s4" class="section">
+    <div class="section-head">
+      <div class="section-num">Parte 04</div>
+      <h2>Conversão em Token Permanente</h2>
+      <p class="section-desc">
+        A conversão consiste em duas requisições sucessivas à Graph API que transformam o token temporário
+        em uma credencial de validade indefinida, vinculada especificamente à Página.
+      </p>
+    </div>
+
+    <div class="step">
+      <div class="step-marker"><div class="step-marker-num">1</div></div>
+      <div class="step-content">
+        <h3>Solicite o token de longa duração</h3>
+        <p>Insira a URL abaixo no navegador, substituindo as expressões destacadas pelos respectivos valores obtidos anteriormente. O conteúdo deve ser transmitido em linha única, sem espaços intermediários.</p>
+        <div class="code-block">
+<button class="copy-btn" onclick="copiar(this,'url1')">Copiar</button><span id="url1">https://graph.facebook.com/v25.0/oauth/access_token?grant_type=fb_exchange_token&client_id=<span class="var">ID_DO_APP</span>&client_secret=<span class="var">CHAVE_SECRETA</span>&fb_exchange_token=<span class="var">TOKEN_CURTO</span></span>
+        </div>
+        <p>A resposta conterá o campo <code>access_token</code> com um novo valor. Registre-o para uso imediato.</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-marker"><div class="step-marker-num">2</div></div>
+      <div class="step-content">
+        <h3>Obtenha o Token Permanente da Página</h3>
+        <p>Com o token de longa duração em mãos, insira no navegador a URL a seguir, promovendo a substituição indicada.</p>
+        <div class="code-block">
+<button class="copy-btn" onclick="copiar(this,'url2')">Copiar</button><span id="url2">https://graph.facebook.com/v25.0/me/accounts?access_token=<span class="var">TOKEN_LONGO</span></span>
+        </div>
+        <p>A resposta apresentará a relação de todas as Páginas administradas pela sua conta. Para cada Página, localize o campo <code>access_token</code> correspondente. <b>Este é o Token Permanente da Página</b>, que será inserido no ZeraFeed.</p>
+      </div>
+    </div>
+
+    <div class="callout ok">
+      <div class="callout-ico">✓</div>
+      <div><b>Validação de permanência.</b> Recomenda-se confirmar o status do token junto ao <a href="https://developers.facebook.com/tools/debug/accesstoken" target="_blank" style="color:inherit;text-decoration:underline">Access Token Debugger</a>. O campo <b>Expira</b> deverá indicar <b>Nunca</b>.</div>
+    </div>
+  </section>
+
+  <!-- SEÇÃO 5 -->
+  <section id="s5" class="section">
+    <div class="section-head">
+      <div class="section-num">Parte 05</div>
+      <h2>Vinculação no ZeraFeed</h2>
+      <p class="section-desc">
+        Com o ID da Página e o Token Permanente registrados, a conexão é finalizada em poucos segundos no painel do sistema.
+      </p>
+    </div>
+
+    <p style="color:var(--ink-2);margin-bottom:12px">Acesse o menu <b>Conexões</b> no ZeraFeed e localize o formulário <b>Conectar nova Página</b>. A interface é apresentada conforme a reprodução abaixo.</p>
+
+    <div class="mockup-wrap">
+      <div class="mockup-caption">Formulário do ZeraFeed · Menu Conexões</div>
+      <div class="mockup">
+        <div class="mockup-top">
+          <div class="mockup-dot"></div>
+          <div class="mockup-dot"></div>
+          <div class="mockup-dot"></div>
+          <div class="mockup-url">zerafeed.com/conexoes</div>
+        </div>
+        <div class="mockup-body">
+          <div class="mockup-title">Conexões</div>
+          <div class="mockup-sub">Vincule a Página do Facebook que será gerenciada.</div>
+          <div class="mockup-card">
+            <div class="mockup-card-title">Conectar nova Página</div>
+            <div class="mockup-fields">
+              <div>
+                <div class="mockup-field-label">
+                  ID da Página
+                  <span class="mockup-field-badge">1</span>
+                </div>
+                <div class="mockup-input filled">1628634290760049</div>
+                <div class="mockup-hint">Disponível em Configurações da Página → Sobre.</div>
+              </div>
+              <div>
+                <div class="mockup-field-label">
+                  Token de acesso da Página
+                  <span class="mockup-field-badge">2</span>
+                </div>
+                <div class="mockup-input filled">EAAenSqxhjI8BSDmxUZBUvmFdgs2ij...</div>
+                <div class="mockup-hint">O token é validado na Graph API antes de ser salvo.</div>
+              </div>
+            </div>
+            <div class="mockup-btn">Conectar Página</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <div class="legend-row">
+        <div class="legend-num">1</div>
+        <div class="legend-content">
+          <h4>ID da Página</h4>
+          <p>Insira o identificador numérico obtido na <b>Parte 02</b>. Exemplo: <code>1628634290760049</code>.</p>
+        </div>
+      </div>
+      <div class="legend-row">
+        <div class="legend-num">2</div>
+        <div class="legend-content">
+          <h4>Token de acesso da Página</h4>
+          <p>Insira o token permanente obtido na <b>Parte 04</b>. Sequência iniciada por <code>EAA</code> e sem prazo de expiração.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout info">
+      <div class="callout-ico">i</div>
+      <div><b>Não devem ser informados no ZeraFeed:</b> o ID do Aplicativo, a Chave Secreta do Aplicativo ou tokens de perfil pessoal. Apenas os dois campos indicados acima.</div>
+    </div>
+
+    <p style="color:var(--ink-2);margin-top:16px">Após acionar <b>Conectar Página</b>, o sistema validará o token junto à Graph API e adicionará a Página à sua lista de <b>Páginas conectadas</b>. A partir desse momento, todas as operações de gestão e limpeza estarão disponíveis no menu <b>Limpeza</b>.</p>
+  </section>
+
+  <!-- resumo final -->
+  <div class="summary">
+    <h2>Considerações finais</h2>
+    <p>Diretrizes de segurança e operação a serem observadas após a conclusão do procedimento.</p>
+    <div class="summary-grid">
+      <div class="summary-item">
+        <div class="summary-item-ico">✓</div>
+        <div class="summary-item-content">
+          <h4>Trate o token como uma senha</h4>
+          <p>A credencial concede controle administrativo pleno sobre a Página. Armazene-a em ambiente restrito e não a compartilhe.</p>
+        </div>
+      </div>
+      <div class="summary-item">
+        <div class="summary-item-ico">✓</div>
+        <div class="summary-item-content">
+          <h4>Preserve o aplicativo criado</h4>
+          <p>A remoção do aplicativo nas configurações do Facebook invalida o token de forma imediata e definitiva.</p>
+        </div>
+      </div>
+      <div class="summary-item">
+        <div class="summary-item-ico">✓</div>
+        <div class="summary-item-content">
+          <h4>Reautenticação após troca de senha</h4>
+          <p>A alteração da senha da conta administradora invalida a totalidade dos tokens vinculados. Neste caso, refaça as Partes 03 e 04 para gerar uma nova credencial e atualize-a no ZeraFeed.</p>
+        </div>
+      </div>
+      <div class="summary-item">
+        <div class="summary-item-ico">✓</div>
+        <div class="summary-item-content">
+          <h4>Conformidade garantida</h4>
+          <p>Todo o procedimento observa integralmente os Termos da Plataforma da Meta. A integração via Graph API é o método oficial de automação reconhecido pela plataforma.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    Dúvidas sobre este procedimento?
+    <a href="https://wa.me/5598984016496" target="_blank" rel="noopener">WhatsApp (98) 98401-6496</a>
+    <div style="margin-top:8px;opacity:.7">
+      ZeraFeed <span class="divider">·</span> Sistema oficial de gestão de publicações
+      <span class="divider">·</span> Contato: 98984016496
+    </div>
+  </footer>
+
+</div>
+
+<script>
+function copiar(btn, id){
+  const el = document.getElementById(id);
+  const txt = el.innerText;
+  navigator.clipboard.writeText(txt).then(()=>{
+    btn.textContent = "Copiado";
+    btn.classList.add("copied");
+    setTimeout(()=>{
+      btn.textContent = "Copiar";
+      btn.classList.remove("copied");
+    }, 1600);
+  });
+}
+</script>
+</body>
+</html>

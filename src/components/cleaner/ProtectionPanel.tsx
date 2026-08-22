@@ -53,7 +53,8 @@ export function ProtectionPanel({
             }
           />
           <p className="text-xs text-muted-foreground">
-            Publicações com esse total de interações ou mais ficam protegidas.
+            Use <strong className="font-medium text-foreground">0</strong> para desativar. Com valor
+            baixo (ex.: 30), quase tudo fica protegido em Páginas ativas.
           </p>
         </div>
       </div>

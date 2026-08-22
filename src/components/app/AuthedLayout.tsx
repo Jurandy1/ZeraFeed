@@ -9,7 +9,7 @@ import { LOCAL_MODE, LOCAL_PAGE_NAME } from "@/lib/zerafeed/local-config";
 
 const STATUS_LABEL: Record<string, string> = {
   active: "Ativo",
-  trialing: "Período de teste",
+  trialing: "Teste grátis",
   past_due: "Pagamento pendente",
   canceled: "Cancelado",
 };
@@ -32,6 +32,12 @@ const LOCAL_ACCOUNT: AccountOverview = {
   },
   connectionsCount: 1,
   totals: { deleted: 0, jobs: 0, failed: 0, protected: 0 },
+  usage: {
+    unlimited: true,
+    deletesUsed: 0,
+    deletesLimit: 300,
+    deletesRemaining: null,
+  },
   lastJob: null,
 };
 
@@ -55,11 +61,24 @@ export function planStatusLabel(status?: string | null) {
 export function AuthedLayout({ children }: { children: ReactNode }) {
   const { data, isLoading } = useAccount();
 
+  const unlimited = data?.usage?.unlimited ?? false;
+  const remaining = data?.usage?.deletesRemaining;
+
   const user = {
     name: data?.profile.fullName ?? data?.profile.email?.split("@")[0] ?? "Minha conta",
     email: data?.profile.email ?? "",
-    planLabel: LOCAL_MODE ? "EX Ladrão" : `Plano ${(data?.subscription?.plan ?? "pro").toUpperCase()}`,
-    planStatus: planStatusLabel(data?.subscription?.status),
+    planLabel: LOCAL_MODE
+      ? "EX Ladrão"
+      : unlimited
+        ? "Plano PRO"
+        : "Teste grátis",
+    planStatus: LOCAL_MODE
+      ? planStatusLabel(data?.subscription?.status)
+      : unlimited
+        ? planStatusLabel(data?.subscription?.status)
+        : remaining == null
+          ? planStatusLabel(data?.subscription?.status)
+          : `${remaining} de ${data?.usage?.deletesLimit ?? 300} exclusões`,
   };
 
   return (
