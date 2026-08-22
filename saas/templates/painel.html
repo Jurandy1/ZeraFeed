@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+{% block title %}Painel · Limpador{% endblock %}
+{% block body %}
+<div class="wrap">
+  {% if request.args.get('ok') == 'pago' or request.args.get('ok') == 'acesso' %}
+  <div class="card ok-banner">Acesso ilimitado liberado. Pode apagar sem o teto de {{ limite_teste }}.</div>
+  {% endif %}
+
+  {% if quota.liberado %}
+  <div class="card ok-banner">Plano liberado — exclusões ilimitadas. Já apagou {{ quota.usados }} nesta conta.</div>
+  {% else %}
+  <div class="card gratis-box" id="cardQuota">
+    <div class="gratis-pill">TESTE GRÁTIS</div>
+    <h2 style="text-transform:none;font-family:inherit;letter-spacing:0;font-size:22px;color:var(--ink);margin:10px 0 8px">{{ limite_teste }} exclusões sem pagar</h2>
+    <p>Restam <b id="quotaRestantes">{{ quota.restantes }}</b> de {{ limite_teste }} (já usou {{ quota.usados }}).</p>
+    <div class="quota-bar"><div class="quota-fill" id="quotaFill" style="width:{{ (quota.usados / limite_teste * 100) if limite_teste else 0 }}%"></div></div>
+    <p class="hint">Acabou o teste? PIX para <b>{{ pix_chave }}</b> e mande o comprovante no WhatsApp do mesmo número.</p>
+    <div class="btn-row">
+      <a class="btn-primary" href="{{ whatsapp_url }}" target="_blank" rel="noopener">Enviar comprovante no WhatsApp</a>
+      <a class="btn-ghost" href="{{ url_for('pagar') }}">Ver chave PIX</a>
+    </div>
+  </div>
+  {% endif %}
+
+  <header>
+    <div>
+      <div class="eyebrow">Painel</div>
+      <h1>Limpador de Página</h1>
+    </div>
+    <div class="page-chip" id="chipPagina">
+      <div class="dot {{ 'on' if conexao else '' }}"></div>
+      <div>
+        <b id="chipNome">{{ conexao.page_name if conexao else "Nenhuma Página conectada" }}</b><br>
+        <span id="chipId">{{ ('ID ' + conexao.page_id) if conexao else "Cole o token da Meta para começar" }}</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="card">
+    <h2><span class="step-n">0</span> Conectar Página</h2>
+    <p class="d" style="margin-bottom:12px">Gere o token na Meta e cole aqui. Ele é salvo criptografado no servidor — esta página nunca volta a mostrar o token.</p>
+
+    <details class="howto">
+      <summary>Como gerar Page ID e token</summary>
+      <ol>
+        <li>Abra o <a href="https://developers.facebook.com/tools/explorer/" target="_blank" rel="noopener">Graph API Explorer</a> logado na conta que administra a Página.</li>
+        <li>Em <b>Meta App</b>, escolha um aplicativo seu (crie um em developers.facebook.com, tipo Business, se ainda não tiver).</li>
+        <li>Clique em <b>Generate Access Token</b> e marque: <code>pages_show_list</code>, <code>pages_read_engagement</code>, <code>pages_manage_posts</code>.</li>
+        <li>Autorize e selecione a Página.</li>
+        <li>No Explorer, faça GET em <code>me?fields=id,name</code> — o <b>id</b> é o Page ID (se o token já for da Página).</li>
+        <li>Copie o Access Token do topo e cole abaixo. Se o token for de usuário e você tiver várias Páginas, o painel pede para escolher.</li>
+      </ol>
+      <p class="hint">Token do Explorer costuma durar poucas horas. Para uso contínuo, gere um token de Página no <a href="https://business.facebook.com/settings/" target="_blank" rel="noopener">Gerenciador de Negócios</a> (Usuários do sistema → Gerar token) com as mesmas permissões.</p>
+    </details>
+
+    <form id="formConexao" class="form" onsubmit="return conectar(event)">
+      <label for="pageId">Page ID (opcional se o token já for da Página)</label>
+      <input id="pageId" name="page_id" type="text" placeholder="Ex.: 1628634290760049" autocomplete="off">
+      <label for="token">Token da Página</label>
+      <input id="token" name="token" type="password" required placeholder="Cole o token — não compartilhe com ninguém" autocomplete="off">
+      <p class="hint">Só a sua Página. Não cole token de terceiro.</p>
+      <div id="listaPaginas" class="hidden"></div>
+      <div class="btn-row">
+        <button class="btn-primary" type="submit" id="btnConectar">Conectar e testar</button>
+        {% if conexao %}
+        <button class="btn-ghost" type="button" onclick="desconectar()">Desconectar</button>
+        {% endif %}
+        <span class="status" id="statusConexao"></span>
+      </div>
+    </form>
+  </div>
+
+  <div id="blocoLimpador" class="{{ '' if conexao else 'hidden' }}">
+    <div class="card">
+      <h2><span class="step-n">1</span> O que apagar</h2>
+      <div class="mode">
+        <label class="mode-opt ativo" id="optTudo" onclick="escolherModo('tudo')">
+          <input type="radio" name="modo" value="tudo" checked>
+          <div>
+            <div class="t">Tudo — da última postagem até a primeira</div>
+            <div class="d">Busca o histórico inteiro da Página, do post mais recente ao mais antigo.</div>
+          </div>
+        </label>
+        <label class="mode-opt" id="optPeriodo" onclick="escolherModo('periodo')">
+          <input type="radio" name="modo" value="periodo">
+          <div>
+            <div class="t">Escolher um período</div>
+            <div class="d">Apagar somente as publicações entre duas datas.</div>
+          </div>
+        </label>
+      </div>
+      <div id="painelPeriodo" class="grid hidden">
+        <div class="aviso full" style="grid-column:1/-1">Só entram publicações criadas entre essas datas (incluindo o dia inicial e o final).</div>
+        <div>
+          <label for="dtInicio">De (data inicial)</label>
+          <input type="date" id="dtInicio">
+        </div>
+        <div>
+          <label for="dtFim">Até (data final)</label>
+          <input type="date" id="dtFim">
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn-primary" id="btnBuscar" type="button" onclick="buscarPosts()">Buscar publicações</button>
+        <span class="status" id="statusBusca"></span>
+      </div>
+      <div class="shield">
+        <div><strong>Proteção:</strong> capa/perfil, N mais recentes e alto engajamento. Backup JSON antes de apagar. Exclusão mais rápida.</div>
+      </div>
+    </div>
+
+    <div class="card hidden" id="cardLista">
+      <h2><span class="step-n">2</span> Revisar e selecionar</h2>
+      <div class="list-controls">
+        <div class="field">
+          <label for="ordem">Ordenação</label>
+          <select id="ordem" onchange="aplicarOrdem()">
+            <option value="desc" selected>Decrescente (mais recente → antiga)</option>
+            <option value="asc">Crescente (mais antiga → recente)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="porPagina">Por página</label>
+          <select id="porPagina" onchange="mudarPorPagina()">
+            <option value="10">10</option>
+            <option value="20" selected>20</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="filtroStatus">Status</label>
+          <select id="filtroStatus" onchange="refazerFiltros()">
+            <option value="todos" selected>Todos</option>
+            <option value="pendente">Não apagados</option>
+            <option value="apagado">Apagados</option>
+            <option value="falhou">Falhou</option>
+            <option value="protegido">Só protegidos</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="filtroTipo">Tipo</label>
+          <select id="filtroTipo" onchange="refazerFiltros()">
+            <option value="todos" selected>Todos</option>
+            <option value="texto">Texto</option>
+            <option value="foto">Foto</option>
+            <option value="video">Vídeo</option>
+            <option value="link">Link</option>
+          </select>
+        </div>
+        <div class="field" style="min-width:160px;flex:1">
+          <label for="filtroTexto">Buscar texto</label>
+          <input type="text" id="filtroTexto" placeholder="palavra…" oninput="refazerFiltros()" autocomplete="off">
+        </div>
+      </div>
+      <div class="list-controls" style="border-bottom:none;padding-bottom:0;margin-bottom:10px">
+        <div class="field">
+          <label for="protegeRecentes">Proteger N recentes</label>
+          <input type="number" id="protegeRecentes" value="5" min="0" max="50">
+        </div>
+        <div class="field">
+          <label for="protegeEngaja">Proteger engajamento ≥</label>
+          <input type="number" id="protegeEngaja" value="30" min="0">
+        </div>
+        <div class="field" style="align-self:flex-end">
+          <button class="btn-ghost" type="button" onclick="baixarBackupSelecionados()">Baixar backup JSON</button>
+        </div>
+      </div>
+      <div class="toolbar">
+        <div class="count" id="contagem"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn-ghost" type="button" id="btnMarcarTodas" onclick="marcarTodos(true)">Marcar TODAS</button>
+          <button class="btn-ghost" type="button" onclick="marcarTodos(false)">Desmarcar todas</button>
+        </div>
+      </div>
+      <div class="sel-banner" id="selBanner">
+        <div>
+          <div><b id="selNum">0</b> publicações selecionadas de <b id="selTotal">0</b> apagáveis</div>
+          <div class="hint-mini">Inclui as que não estão nesta página. Foto de perfil e capa nunca entram.</div>
+        </div>
+        <button class="btn-danger" type="button" id="btnApagarTop" onclick="abrirConfirmacao()">Apagar as selecionadas</button>
+      </div>
+      <div id="lista"></div>
+      <div class="pager" id="pager"></div>
+      <div class="btn-row">
+        <button class="btn-danger" id="btnApagar" type="button" onclick="abrirConfirmacao()">Apagar selecionados</button>
+        <span class="status" id="statusSel"></span>
+      </div>
+    </div>
+
+    <div class="card hidden" id="cardExec">
+      <h2><span class="step-n">3</span> Execução</h2>
+      <div class="progress-outer"><div class="progress-inner" id="barra"></div></div>
+      <div class="status" id="statusExec"></div>
+      <div class="log" id="log"></div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="modal">
+  <div class="modal">
+    <h3>Confirmar exclusão permanente</h3>
+    <p id="modalTexto"></p>
+    <label for="confirmInput">Digite <b>APAGAR</b> para confirmar</label>
+    <input type="text" id="confirmInput" autocomplete="off">
+    <div class="btn-row" style="margin-top:0">
+      <button class="btn-danger" type="button" onclick="executarExclusao()">Apagar permanentemente</button>
+      <button class="btn-ghost" type="button" onclick="fecharModal()">Cancelar</button>
+    </div>
+  </div>
+</div>
+<script>window.LIMITE_TESTE = {{ limite_teste }}; window.QUOTA = {{ quota | tojson }};</script>
+<script src="{{ url_for('static', filename='painel.js') }}"></script>
+{% endblock %}

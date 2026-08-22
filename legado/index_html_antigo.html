@@ -1,0 +1,1303 @@
+<!DOCTYPE html>
+<!--
+================================================================================
+INDEX ÚNICO — Limpador de Página Facebook (tudo neste arquivo)
+Para pedir a outra IA: "melhore só o DESIGN deste index.html sem quebrar a lógica".
+================================================================================
+
+## O QUE ESTE ARQUIVO É
+App 100% front-end (HTML + CSS + JS). Sem React, sem build, sem arquivos extras.
+Usa Graph API da Meta (v25) com PAGE_ID + PAGE_TOKEN fixos no <script>.
+Abra via http://127.0.0.1:8790/index.html (python -m http.server) ou file://.
+
+## FLUXO DO USUÁRIO
+1. Escolher modo: tudo OU período (since/until)
+2. Filtros/proteção (sempre visíveis)
+3. Buscar → lista paginada com preview de mídia + engajamento
+4. Selecionar → backup JSON → digitar APAGAR → exclusão em lote
+
+## COMO PUXA A API
+GET https://graph.facebook.com/v25.0/{PAGE_ID}/posts
+Query:
+  access_token=PAGE_TOKEN
+  fields = CAMPOS_POST (ver const no JS):
+    id, message, story, created_time, permalink_url, full_picture, status_type,
+    is_published, attachments{type,media_type,url,media,subattachments{...}},
+    reactions.summary(true).limit(0),
+    comments.summary(true).limit(0),
+    shares
+  limit=100
+  since / until (se modo período)
+Paginação: seguir paging.next até acabar.
+
+DELETE de um post: DELETE /{post_id}?access_token=...
+DELETE em lote (rápido): POST / com body batch=[{method:DELETE,relative_url:id},...]
+  BATCH_SIZE=20, pausa ~700ms entre lotes; se rate limit → espera 60s e retenta.
+  Fallback: um a um se o batch falhar.
+
+Permissões típicas do token de Página:
+  pages_show_list, pages_read_engagement, pages_manage_posts, pages_manage_engagement
+
+## FILTROS (UI passo 2 → função postsFiltrados)
+- Atalhos: só fotos / vídeos / texto / baixo engajamento / só apagáveis / limpar
+- Tipo (chips): todos | foto | video | texto | link  → tipoCategoria()
+- Status: todos | pendente | protegido | apagado | falhou
+- Texto: includes em message+story
+- Mídia: com | sem (via coletarMidia / full_picture)
+- Engajamento min/máx (reações+comentários+shares)
+- Ordenação: data desc/asc | engajamento desc/asc
+- Ocultar protegidos
+- Contadores ao vivo: atualizarResumoFiltros()
+- "Marcar TODAS" = só os apagáveis do filtro atual
+
+## PROTEÇÃO (ehProtegido) — nunca seleciona nem apaga
+1. capa/perfil — attachments type cover_photo/profile_* ou story com texto de capa/perfil
+2. recente — N posts mais novos (input protegeRecentes, padrão 5)
+3. engajamento — total >= protegeEngaja (padrão 30)
+
+## BACKUP
+baixarBackupSelecionados() e backup automático antes de executarExclusao()
+JSON: id, datas, message, story, permalink, full_picture, tipo, engajamento, attachments
+
+## MÍDIA NA LISTA (coletarMidia / htmlMidia)
+- Álbum com 2+ subattachments → até 6 fotos
+- Post normal → 1 imagem (full_picture preferido) para não duplicar
+- Vídeo → <video> ou fallback com poster
+
+## DESIGN ATUAL (CSS variables em :root)
+--ink #10233B | --paper #F5F7FA | --accent #1663C7 | --danger #C22B2B
+--ok #1E7B4D | --lock / --lock-bg (protegidos)
+Layout: .wrap max 860px, .card, chips .chip, .post, .media-row, modal .overlay
+Fonte: Segoe UI / system. Mono: Consolas.
+NÃO é purple-gradient / dark-mode genérico.
+
+## SAAS MULTI-CLIENTE (pasta saas/ — NÃO está neste HTML)
+Produto pago separado: Flask + SQLite + token criptografado (Fernet).
+Fluxo: cadastro → teste 500 deletes → PIX 988984016496 + comprovante WhatsApp →
+admin libera ilimitado. Token do cliente NUNCA no HTML; APIs /api/posts etc.
+Este index é o limpador “dono da Página” com token embutido (EX Ladrão).
+
+## FUNÇÕES JS PRINCIPAIS
+buscarPosts, postsFiltrados, renderizar, marcarTodos, abrirConfirmacao,
+executarExclusao, deletarLote, deletarUm, atualizarProtecoes, setTipo, aplicarPreset,
+coletarMidia, engajamento, tipoCategoria, podeApagar, ehProtegido
+
+## O QUE NÃO QUEBRAR AO REDESENHAR
+- IDs dos elementos (#btnBuscar, #lista, #filtroTipo, #protegeRecentes, …)
+- Const PAGE_ID / PAGE_TOKEN / CAMPOS_POST / GRAPH
+- Regras de proteção e confirmação digitando APAGAR
+- Batch delete e backup JSON
+- Lógica de postsFiltrados / tipoCategoria
+
+Melhoria de design desejável: visual mais forte, hierarquia, mobile, microinterações —
+sem mudar o contrato da API nem a lógica de exclusão.
+================================================================================
+-->
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Limpador de Página — index único</title>
+<style>
+  :root{
+    --ink:#10233B;
+    --ink-soft:#3D5573;
+    --paper:#F5F7FA;
+    --card:#FFFFFF;
+    --line:#D9E1EB;
+    --accent:#1663C7;
+    --accent-dark:#0F4C9C;
+    --danger:#C22B2B;
+    --danger-dark:#9E1F1F;
+    --ok:#1E7B4D;
+    --lock:#8A6D1F;
+    --lock-bg:#FBF3D9;
+    --mono:'Consolas','SF Mono',ui-monospace,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
+    background:var(--paper);color:var(--ink);
+    min-height:100vh;padding:24px 16px 64px;
+  }
+  .wrap{max-width:860px;margin:0 auto}
+
+  header{margin-bottom:24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .gratis-local{
+    width:100%;background:#E8F7EE;border:1px solid #B7E0C7;border-radius:12px;
+    padding:14px 16px;margin-bottom:4px;color:#145C38}
+  .gratis-local b{display:block;font-size:18px;margin-bottom:4px}
+  .page-chip{display:flex;align-items:center;gap:10px;background:var(--card);
+    border:1px solid var(--line);border-radius:12px;padding:10px 16px}
+  .page-chip .dot{width:10px;height:10px;border-radius:50%;background:var(--ok)}
+  .page-chip b{font-size:15px}
+  .page-chip span{font-family:var(--mono);font-size:11px;color:var(--ink-soft)}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--accent);margin-bottom:6px}
+  h1{font-size:24px;font-weight:700;letter-spacing:-.01em}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:20px;margin-bottom:16px}
+  .card h2{font-size:13px;font-family:var(--mono);letter-spacing:.1em;
+    text-transform:uppercase;color:var(--ink-soft);margin-bottom:14px;
+    display:flex;align-items:center;gap:8px}
+  .step-n{display:inline-flex;align-items:center;justify-content:center;
+    width:20px;height:20px;border-radius:50%;background:var(--accent);
+    color:#fff;font-size:11px;font-weight:700}
+
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:600px){.grid{grid-template-columns:1fr}}
+  label{display:block;font-size:12px;font-weight:600;margin-bottom:5px;color:var(--ink-soft)}
+  input[type=date]{
+    width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;
+    font-size:14px;font-family:var(--mono);background:#FBFCFE;color:var(--ink)}
+  input:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:var(--accent)}
+  .hint{font-size:11.5px;color:var(--ink-soft);margin-top:4px}
+
+  /* seletor de modo */
+  .mode{display:flex;flex-direction:column;gap:10px;margin-bottom:14px}
+  .mode-opt{display:flex;gap:12px;align-items:flex-start;border:1px solid var(--line);
+    border-radius:10px;padding:14px;cursor:pointer;background:#FDFEFF;transition:border-color .15s}
+  .mode-opt.ativo{border-color:var(--accent);outline:2px solid var(--accent);outline-offset:-1px;background:#F3F8FE}
+  .mode-opt input{width:17px;height:17px;margin-top:2px;accent-color:var(--accent);flex-shrink:0}
+  .mode-opt .t{font-size:14px;font-weight:600}
+  .mode-opt .d{font-size:12.5px;color:var(--ink-soft);margin-top:2px}
+  #painelPeriodo{margin-top:12px;padding:14px;border:1px dashed var(--accent);border-radius:10px;background:#F7FAFE}
+  #painelPeriodo.hidden{display:none !important}
+  #painelPeriodo .aviso{font-size:12.5px;color:var(--ink-soft);margin-bottom:10px}
+
+  button{border:none;border-radius:8px;padding:11px 18px;font-size:14px;
+    font-weight:600;cursor:pointer;font-family:inherit;transition:background .15s}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  .btn-primary{background:var(--accent);color:#fff}
+  .btn-primary:hover:not(:disabled){background:var(--accent-dark)}
+  .btn-danger{background:var(--danger);color:#fff}
+  .btn-danger:hover:not(:disabled){background:var(--danger-dark)}
+  .btn-ghost{background:transparent;color:var(--accent);border:1px solid var(--line)}
+  .btn-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;align-items:center}
+
+  .shield{background:var(--lock-bg);border:1px solid #EAD9A0;border-radius:10px;
+    padding:12px 14px;font-size:13px;color:var(--lock);display:flex;gap:10px;
+    align-items:flex-start;margin-top:14px}
+  .shield strong{color:#6B520E}
+
+  .toolbar{display:flex;justify-content:space-between;align-items:center;
+    flex-wrap:wrap;gap:10px;margin-bottom:12px}
+  .count{font-family:var(--mono);font-size:13px;color:var(--ink-soft)}
+  .count b{color:var(--ink)}
+  .post{display:flex;gap:12px;padding:12px;border:1px solid var(--line);
+    border-radius:10px;margin-bottom:8px;background:#FDFEFF;align-items:flex-start}
+  .post.protected{background:var(--lock-bg);border-color:#EAD9A0}
+  .post input[type=checkbox]{width:17px;height:17px;margin-top:3px;accent-color:var(--danger);flex-shrink:0}
+  .post .body{flex:1;min-width:0}
+  .post .date{font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);margin-bottom:3px}
+  .post .msg{font-size:13.5px;line-height:1.45;word-wrap:break-word}
+  .post .msg.empty{color:var(--ink-soft);font-style:italic}
+  .badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;
+    font-weight:700;padding:3px 9px;border-radius:20px;margin-top:6px}
+  .badge.lock{background:#F3E6BC;color:var(--lock)}
+  .badge.type{background:#E7EFFA;color:var(--accent);font-weight:600}
+  .badge.st-ok{background:#D8F3E4;color:var(--ok)}
+  .badge.st-pend{background:#EEF2F7;color:var(--ink-soft)}
+  .badge.eng{background:#F3E6BC;color:var(--lock);font-weight:600}
+  .badge.rec{background:#EDE4FF;color:#5B3FBF;font-weight:600}
+  .eng-line{font-family:var(--mono);font-size:11px;color:var(--ink-soft);margin-top:4px}
+  .post.deleted{opacity:.72;background:#F4FBF7;border-color:#B7E0C7}
+  .post.failed{background:#FFF8F8;border-color:#F0C0C0}
+  .meta-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px}
+  .plink{font-size:11.5px;color:var(--accent);text-decoration:none;margin-top:4px;display:inline-block}
+  .plink:hover{text-decoration:underline}
+  .media-row{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+  .media-row img,.media-row video{
+    width:160px;height:120px;object-fit:cover;border-radius:8px;
+    border:1px solid var(--line);background:#111;display:block}
+  .media-row video{width:220px;height:140px}
+  .vid-fallback{position:relative;width:160px;height:120px}
+  .vid-fallback img{width:100%;height:100%;object-fit:cover;border-radius:8px}
+  .vid-fallback span{
+    position:absolute;left:8px;bottom:8px;background:rgba(0,0,0,.7);color:#fff;
+    font-size:11px;font-weight:700;padding:3px 8px;border-radius:12px}
+
+  .list-controls{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;
+    margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+  .list-controls .field{min-width:140px}
+  .list-controls select, .filt-input{
+    width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:8px;
+    font-size:13px;font-family:var(--mono);background:#FBFCFE;color:var(--ink)}
+  .filt-sec{margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+  .filt-sec:last-of-type{border-bottom:none;margin-bottom:0;padding-bottom:0}
+  .filt-sec h3{font-size:12px;font-family:var(--mono);letter-spacing:.08em;text-transform:uppercase;
+    color:var(--ink-soft);margin-bottom:10px}
+  .chip-row{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{
+    border:1px solid var(--line);background:#FBFCFE;color:var(--ink);border-radius:20px;
+    padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+  .chip:hover{border-color:var(--accent);color:var(--accent)}
+  .chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .chip .n{font-family:var(--mono);font-size:11px;opacity:.85;margin-left:4px}
+  .filt-resumo{
+    display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;
+    background:#F3F8FE;border:1px solid #B7D0F0;border-radius:10px;padding:10px 14px;margin-top:12px}
+  .filt-resumo b{font-family:var(--mono);color:var(--accent-dark)}
+  .filt-tags{display:flex;flex-wrap:wrap;gap:6px}
+  .filt-tag{font-size:11px;background:#fff;border:1px solid var(--line);border-radius:12px;
+    padding:3px 9px;color:var(--ink-soft)}
+  .preset-row{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+  .pager{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;
+    margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+  .pager .pages{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .pager .info{font-family:var(--mono);font-size:12px;color:var(--ink-soft)}
+  .btn-page{min-width:36px;padding:8px 12px;background:#FBFCFE;border:1px solid var(--line);
+    color:var(--ink);border-radius:8px;font-weight:600;cursor:pointer}
+  .btn-page:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+  .btn-page.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .sel-banner{
+    margin: 0 0 14px; padding: 12px 14px; border-radius: 10px;
+    border: 1px solid #B7D0F0; background: #EAF2FC; color: var(--ink);
+    font-size: 14px; display: none; align-items: center; justify-content: space-between;
+    gap: 12px; flex-wrap: wrap;
+  }
+  .sel-banner.on{display:flex}
+  .sel-banner b{color: var(--accent-dark); font-family: var(--mono)}
+  .sel-banner .hint-mini{font-size:12px;color:var(--ink-soft)}
+  .btn-danger:not(:disabled){box-shadow:0 0 0 2px rgba(194,43,43,.15)}
+
+
+  .progress-outer{height:10px;background:var(--line);border-radius:6px;overflow:hidden;margin:10px 0}
+  .progress-inner{height:100%;width:0;background:var(--accent);transition:width .3s;border-radius:6px}
+  .log{font-family:var(--mono);font-size:12px;background:#0E1B2E;color:#C8D6E8;
+    border-radius:10px;padding:14px;max-height:240px;overflow-y:auto;
+    white-space:pre-wrap;line-height:1.6;margin-top:10px}
+  .log .ok{color:#6FCF97}.log .err{color:#F09090}.log .warn{color:#F0CE7A}
+
+  .status{font-size:13px;margin-top:10px;color:var(--ink-soft)}
+  .status.error{color:var(--danger);font-weight:600}
+  .hidden{display:none !important}
+
+  .overlay{position:fixed;inset:0;background:rgba(16,35,59,.55);display:flex;
+    align-items:center;justify-content:center;padding:16px;z-index:50}
+  .modal{background:#fff;border-radius:14px;padding:24px;max-width:420px;width:100%}
+  .modal h3{font-size:17px;margin-bottom:8px;color:var(--danger)}
+  .modal p{font-size:13.5px;color:var(--ink-soft);line-height:1.5;margin-bottom:14px}
+  .modal input{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;
+    font-family:var(--mono);font-size:14px;margin-bottom:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="gratis-local">
+    <b>INDEX ÚNICO — arquivo completo (HTML+CSS+JS)</b>
+    Este é o <code>index.html</code> com toda a estrutura, design e lógica atuais (API Graph, filtros, proteção, backup, delete em lote). Use este arquivo sozinho para pedir melhoria de design a outra IA. SaaS multi-cliente fica em <code>saas/</code> (servidor).
+  </div>
+  <header>
+    <div>
+      <div class="eyebrow">Graph API oficial · Meta</div>
+      <h1>Limpador de Página</h1>
+    </div>
+    <div class="page-chip">
+      <div class="dot"></div>
+      <div>
+        <b>EX Ladrão</b><br>
+        <span>facebook.com/ExLadrao · já configurada</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- PASSO 1: modo -->
+  <div class="card">
+    <h2><span class="step-n">1</span> O que apagar</h2>
+    <div class="mode">
+      <label class="mode-opt ativo" id="optTudo" onclick="escolherModo('tudo')">
+        <input type="radio" name="modo" value="tudo" checked>
+        <div>
+          <div class="t">Tudo — da última postagem até a primeira</div>
+          <div class="d">Busca o histórico inteiro da Página, do post mais recente ao mais antigo.</div>
+        </div>
+      </label>
+      <label class="mode-opt" id="optPeriodo" onclick="escolherModo('periodo')">
+        <input type="radio" name="modo" value="periodo">
+        <div>
+          <div class="t">Escolher um período</div>
+          <div class="d">Apagar somente as publicações entre duas datas (ex.: 01/02/2023 até 01/12/2025).</div>
+        </div>
+      </label>
+    </div>
+    <div id="painelPeriodo" class="grid hidden">
+      <div class="aviso full" style="grid-column:1/-1">Defina você mesmo o intervalo. Só entram publicações criadas entre essas datas (incluindo o dia inicial e o final).</div>
+      <div>
+        <label for="dtInicio">De (data inicial)</label>
+        <input type="date" id="dtInicio">
+        <div class="hint">Ex.: 01/02/2023</div>
+      </div>
+      <div>
+        <label for="dtFim">Até (data final)</label>
+        <input type="date" id="dtFim">
+        <div class="hint">Ex.: 01/12/2025</div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn-primary" id="btnBuscar" type="button" onclick="buscarPosts()">Buscar publicações</button>
+      <span class="status" id="statusBusca"></span>
+    </div>
+    <div class="shield">
+      <span style="font-size:18px">🛡️</span>
+      <div><strong>Proteção automática:</strong> capa/perfil nunca apagam. Também protege os N posts mais recentes e posts com engajamento alto (reações+comentários+shares). Backup JSON antes de apagar. Exclusão em lote (mais rápida).</div>
+    </div>
+  </div>
+
+  <!-- FILTROS E PROTEÇÃO — sempre visível -->
+  <div class="card" id="cardFiltros">
+    <h2><span class="step-n">2</span> Filtros e proteção</h2>
+
+    <div class="filt-sec">
+      <h3>Atalhos rápidos</h3>
+      <div class="preset-row">
+        <button type="button" class="chip" onclick="aplicarPreset('fotos')">Só fotos</button>
+        <button type="button" class="chip" onclick="aplicarPreset('videos')">Só vídeos</button>
+        <button type="button" class="chip" onclick="aplicarPreset('texto')">Só texto</button>
+        <button type="button" class="chip" onclick="aplicarPreset('baixo')">Baixo engajamento (&lt;10)</button>
+        <button type="button" class="chip" onclick="aplicarPreset('apagaveis')">Só apagáveis</button>
+        <button type="button" class="chip" onclick="aplicarPreset('limpar')">Limpar filtros</button>
+      </div>
+    </div>
+
+    <div class="filt-sec">
+      <h3>Tipo de publicação</h3>
+      <div class="chip-row" id="chipsTipo">
+        <button type="button" class="chip on" data-tipo="todos" onclick="setTipo('todos')">Todos<span class="n" id="nTodos">0</span></button>
+        <button type="button" class="chip" data-tipo="foto" onclick="setTipo('foto')">Foto<span class="n" id="nFoto">0</span></button>
+        <button type="button" class="chip" data-tipo="video" onclick="setTipo('video')">Vídeo<span class="n" id="nVideo">0</span></button>
+        <button type="button" class="chip" data-tipo="texto" onclick="setTipo('texto')">Texto<span class="n" id="nTexto">0</span></button>
+        <button type="button" class="chip" data-tipo="link" onclick="setTipo('link')">Link<span class="n" id="nLink">0</span></button>
+      </div>
+      <input type="hidden" id="filtroTipo" value="todos">
+    </div>
+
+    <div class="filt-sec">
+      <h3>Status e texto</h3>
+      <div class="list-controls" style="border:none;margin:0;padding:0">
+        <div class="field">
+          <label for="filtroStatus">Status</label>
+          <select id="filtroStatus" onchange="refazerFiltros()">
+            <option value="todos" selected>Todos</option>
+            <option value="pendente">Não apagados (apagáveis)</option>
+            <option value="protegido">Só protegidos</option>
+            <option value="apagado">Já apagados</option>
+            <option value="falhou">Falhou</option>
+          </select>
+        </div>
+        <div class="field" style="min-width:220px;flex:1.2">
+          <label for="filtroTexto">Buscar no texto</label>
+          <input class="filt-input" type="text" id="filtroTexto" placeholder="Ex.: promoção, sorteio…" oninput="refazerFiltros()" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="filtroMidia">Mídia</label>
+          <select id="filtroMidia" onchange="refazerFiltros()">
+            <option value="todos" selected>Com ou sem mídia</option>
+            <option value="com">Só com foto/vídeo</option>
+            <option value="sem">Só sem mídia (texto)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="filt-sec">
+      <h3>Engajamento (filtro da lista)</h3>
+      <div class="list-controls" style="border:none;margin:0;padding:0">
+        <div class="field">
+          <label for="filtroEngMin">Mínimo</label>
+          <input class="filt-input" type="number" id="filtroEngMin" value="0" min="0" onchange="refazerFiltros()" oninput="refazerFiltros()">
+        </div>
+        <div class="field">
+          <label for="filtroEngMax">Máximo (vazio = sem teto)</label>
+          <input class="filt-input" type="number" id="filtroEngMax" value="" min="0" placeholder="∞" onchange="refazerFiltros()" oninput="refazerFiltros()">
+        </div>
+        <div class="field">
+          <label for="ordem">Ordenar por</label>
+          <select id="ordem" onchange="aplicarOrdem()">
+            <option value="desc" selected>Data · mais recente</option>
+            <option value="asc">Data · mais antiga</option>
+            <option value="eng-desc">Engajamento · maior</option>
+            <option value="eng-asc">Engajamento · menor</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="porPagina">Por página</label>
+          <select id="porPagina" onchange="mudarPorPagina()">
+            <option value="10">10</option>
+            <option value="20" selected>20</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="filt-sec">
+      <h3>Proteção (nunca apaga)</h3>
+      <div class="list-controls" style="border:none;margin:0;padding:0">
+        <div class="field">
+          <label for="protegeRecentes">Proteger N mais recentes</label>
+          <input class="filt-input" type="number" id="protegeRecentes" value="5" min="0" max="50" onchange="atualizarProtecoes()">
+        </div>
+        <div class="field">
+          <label for="protegeEngaja">Proteger se engajamento ≥</label>
+          <input class="filt-input" type="number" id="protegeEngaja" value="30" min="0" onchange="atualizarProtecoes()">
+          <div class="hint">Reações + comentários + shares</div>
+        </div>
+        <div class="field" style="align-self:flex-end">
+          <label style="display:flex;gap:8px;align-items:center;cursor:pointer;font-weight:600;color:var(--ink)">
+            <input type="checkbox" id="ocultarProtegidos" onchange="refazerFiltros()" style="width:17px;height:17px;accent-color:var(--accent)">
+            Ocultar protegidos da lista
+          </label>
+        </div>
+        <div class="field" style="align-self:flex-end">
+          <button class="btn-ghost" type="button" onclick="baixarBackupSelecionados()">Baixar backup JSON</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="filt-resumo">
+      <div>
+        <div><b id="filtCount">0</b> no filtro · <b id="filtApagaveis">0</b> apagáveis · <b id="filtProt">0</b> protegidos</div>
+        <div class="filt-tags" id="filtTags"></div>
+      </div>
+      <button class="btn-ghost" type="button" onclick="aplicarPreset('limpar')">Limpar</button>
+    </div>
+  </div>
+
+  <!-- PASSO 3: revisão -->
+  <div class="card hidden" id="cardLista">
+    <h2><span class="step-n">3</span> Revisar e selecionar</h2>
+    <div class="toolbar">
+      <div class="count" id="contagem"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn-ghost" type="button" id="btnMarcarTodas" onclick="marcarTodos(true)">Marcar TODAS (todas as páginas)</button>
+        <button class="btn-ghost" type="button" onclick="marcarTodos(false)">Desmarcar todas</button>
+      </div>
+    </div>
+    <div class="sel-banner" id="selBanner">
+      <div>
+        <div><b id="selNum">0</b> publicações selecionadas de <b id="selTotal">0</b> apagáveis</div>
+        <div class="hint-mini">Inclui as que não estão nesta página. Protegidos nunca entram.</div>
+      </div>
+      <button class="btn-danger" type="button" id="btnApagarTop" onclick="abrirConfirmacao()">Apagar as selecionadas</button>
+    </div>
+    <div id="lista"></div>
+    <div class="pager" id="pager"></div>
+    <div class="btn-row">
+      <button class="btn-danger" id="btnApagar" type="button" onclick="abrirConfirmacao()">Apagar selecionados</button>
+      <span class="status" id="statusSel"></span>
+    </div>
+  </div>
+
+  <!-- PASSO 4: execução -->
+  <div class="card hidden" id="cardExec">
+    <h2><span class="step-n">4</span> Execução</h2>
+    <div class="progress-outer"><div class="progress-inner" id="barra"></div></div>
+    <div class="status" id="statusExec"></div>
+    <div class="log" id="log"></div>
+  </div>
+</div>
+
+<!-- modal -->
+<div class="overlay hidden" id="modal">
+  <div class="modal">
+    <h3>Confirmar exclusão permanente</h3>
+    <p id="modalTexto"></p>
+    <label for="confirmInput" style="font-size:12px;font-weight:600;margin-bottom:5px;display:block">Digite <b>APAGAR</b> para confirmar</label>
+    <input type="text" id="confirmInput" autocomplete="off">
+    <div class="btn-row" style="margin-top:0">
+      <button class="btn-danger" onclick="executarExclusao()">Apagar permanentemente</button>
+      <button class="btn-ghost" onclick="fecharModal()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============ CONFIGURAÇÃO FIXA — PÁGINA EX LADRÃO ============
+const PAGE_ID = "1628634290760049";
+const PAGE_TOKEN = "EAAenSqxhjI8BSDmxUZBUvmFdgs2ijNyKEb2SvsY8t2IVIZBlxGWUxVsfrznZCcMQbJoIRZCvO3epZAbpdFNWIpVDqAp8ugF9au1k0ZBUYhm19vXnIgt2mfbZCgT4ghHqPMG9mjIPufS4HC6WS2mapUb1q5Yev51TGU9EqejBeHShfyYEPU8G9LaXErlTSFtRV4o56ZC0ofXyRxmKUzQwMDyaTzj9";
+// ==============================================================
+
+const GRAPH = "https://graph.facebook.com/v25.0";
+const CAMPOS_POST =
+  "id,message,story,created_time,permalink_url,full_picture,status_type,is_published," +
+  "attachments{type,media_type,url,media,subattachments{type,media_type,url,media}}," +
+  "reactions.summary(true).limit(0),comments.summary(true).limit(0),shares";
+const BATCH_SIZE = 20;
+const PAUSA_LOTE_MS = 700;
+let posts = [];
+let selecionadosIds = new Set();
+let paginaAtual = 1;
+let executando = false;
+let idsRecentesProtegidos = new Set();
+const $ = id => document.getElementById(id);
+
+function engajamento(post){
+  const r = post.reactions?.summary?.total_count || 0;
+  const c = post.comments?.summary?.total_count || 0;
+  const s = post.shares?.count || 0;
+  return {reacoes:r, comentarios:c, shares:s, total: r+c+s};
+}
+
+function tipoCategoria(post){
+  const a = post.attachments?.data?.[0];
+  if(!a) return post.message ? "texto" : "texto";
+  const t = (a.type||a.media_type||"").toLowerCase();
+  if(t.includes("video")) return "video";
+  if(t.includes("photo")||t.includes("album")||t.includes("image")) return "foto";
+  if(t.includes("share")||t.includes("link")||t.includes("native_templates")) return "link";
+  return post.message ? "texto" : "texto";
+}
+
+/** Pode ser marcada/apagada? Nunca capa/perfil/recente/alto engajamento. */
+function podeApagar(post){
+  if(!post) return false;
+  if(ehProtegido(post)) return false;
+  if(post.status === "apagado") return false;
+  return post.status === "pendente" || post.status === "falhou";
+}
+
+function escolherModo(modo){
+  const radio = document.querySelector(`input[name=modo][value="${modo}"]`);
+  if(radio) radio.checked = true;
+  trocarModo();
+}
+
+function modoAtual(){
+  const el = document.querySelector('input[name=modo]:checked');
+  return el ? el.value : "tudo";
+}
+
+function trocarModo(){
+  const periodo = modoAtual() === "periodo";
+  $("painelPeriodo").classList.toggle("hidden", !periodo);
+  $("optTudo").classList.toggle("ativo", !periodo);
+  $("optPeriodo").classList.toggle("ativo", periodo);
+  $("statusBusca").textContent = periodo
+    ? "Modo período: escolha as datas e clique em Buscar."
+    : "Modo tudo: busca o histórico completo.";
+  $("statusBusca").className = "status";
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  trocarModo();
+  atualizarResumoFiltros();
+});
+
+function ehProtegido(post){
+  const anexos = post.attachments?.data || [];
+  for(const a of anexos){
+    const t = (a.type || "").toLowerCase();
+    if(t.includes("cover_photo") || t.includes("profile_media") || t.includes("profile_photo")) return "capa/perfil";
+  }
+  const story = (post.story || "").toLowerCase();
+  if(story.includes("foto do perfil") || story.includes("foto de perfil") ||
+     story.includes("foto da capa") || story.includes("foto de capa") ||
+     story.includes("profile picture") || story.includes("cover photo")) return "capa/perfil";
+  if(idsRecentesProtegidos.has(post.id)) return "recente";
+  const minEng = Math.max(0, parseInt($("protegeEngaja")?.value || "0", 10) || 0);
+  if(minEng > 0 && engajamento(post).total >= minEng) return "engajamento";
+  return null;
+}
+
+function atualizarProtecoes(){
+  const n = Math.max(0, parseInt($("protegeRecentes")?.value || "0", 10) || 0);
+  const ordenados = [...posts].sort((a,b)=> new Date(b.created_time)-new Date(a.created_time));
+  idsRecentesProtegidos = new Set(ordenados.slice(0, n).map(p => p.id));
+  // remove da seleção o que ficou protegido
+  for(const id of [...selecionadosIds]){
+    const p = posts.find(x => x.id === id);
+    if(!p || ehProtegido(p)) selecionadosIds.delete(id);
+  }
+  renderizar({scroll:false});
+}
+
+function tipoLegivel(post){
+  const map = {texto:"texto", foto:"foto", video:"vídeo", link:"link"};
+  return map[tipoCategoria(post)] || "publicação";
+}
+
+function coletarMidia(post){
+  const anexos = post.attachments?.data || [];
+  let folhas = [];
+  for(const a of anexos){
+    const sub = a.subattachments?.data || [];
+    if(sub.length) folhas = folhas.concat(sub);
+    else folhas.push(a);
+  }
+
+  function ehVideo(a){
+    const t = ((a.type || "") + " " + (a.media_type || "")).toLowerCase();
+    return !!(a.media?.source) || t.includes("video");
+  }
+
+  // 1 vídeo no máximo no preview
+  for(const a of folhas){
+    if(!ehVideo(a)) continue;
+    return [{
+      kind: "video",
+      src: a.media?.source || "",
+      poster: a.media?.image?.src || post.full_picture || ""
+    }];
+  }
+
+  function idMidia(u){
+    if(!u) return "";
+    const s = String(u);
+    const m = s.match(/\/(\d{8,})(?:_|\/|\.)/) || s.match(/(\d{10,})/);
+    if(m) return m[1];
+    try{
+      const x = new URL(s);
+      return x.pathname.replace(/\/[sp]\d+x\d+\//gi, "/").split("?")[0];
+    }catch(_){
+      return s.split("?")[0];
+    }
+  }
+
+  const fotos = [];
+  const visto = new Set();
+  for(const a of folhas){
+    const img = a.media?.image?.src;
+    if(!img) continue;
+    const k = idMidia(img);
+    if(visto.has(k)) continue;
+    visto.add(k);
+    fotos.push({kind: "image", src: img, poster: ""});
+  }
+
+  const temAlbum = anexos.some(a => (a.subattachments?.data || []).length >= 2);
+  // Álbum com 2+ fotos: mostra as distintas. Caso contrário: SEMPRE 1 imagem.
+  if(temAlbum && fotos.length >= 2) return fotos.slice(0, 6);
+  if(post.full_picture) return [{kind: "image", src: post.full_picture, poster: ""}];
+  if(fotos.length) return [fotos[0]];
+  return [];
+}
+
+function htmlMidia(post){
+  const itens = coletarMidia(post);
+  if(!itens.length) return "";
+  return `<div class="media-row">${itens.map(m => {
+    if(m.kind === "video" && m.src){
+      return `<video controls preload="metadata" poster="${escapar(m.poster)}" referrerpolicy="no-referrer">
+        <source src="${escapar(m.src)}">
+      </video>`;
+    }
+    if(m.kind === "video"){
+      const poster = m.poster || post.full_picture || "";
+      return poster ? `<div class="vid-fallback"><img src="${escapar(poster)}" alt="" referrerpolicy="no-referrer"><span>vídeo</span></div>` : "";
+    }
+    return `<img src="${escapar(m.src)}" alt="" referrerpolicy="no-referrer">`;
+  }).join("")}</div>`;
+}
+
+function statusBadge(p){
+  const motivo = ehProtegido(p);
+  if(motivo === "capa/perfil") return `<span class="badge lock">Protegido — capa/perfil</span>`;
+  if(motivo === "recente") return `<span class="badge rec">Protegido — recente</span>`;
+  if(motivo === "engajamento") return `<span class="badge eng">Protegido — engajamento</span>`;
+  if(p.status === "apagado") return `<span class="badge st-ok">Apagado</span>`;
+  if(p.status === "falhou") return `<span class="badge st-fail">Não apagado — falhou</span>`;
+  return `<span class="badge st-pend">Não apagado</span>`;
+}
+
+function ordenarPosts(){
+  const modo = $("ordem").value;
+  posts.sort((a,b)=>{
+    if(modo === "eng-desc" || modo === "eng-asc"){
+      const ea = engajamento(a).total;
+      const eb = engajamento(b).total;
+      return modo === "eng-desc" ? (eb - ea) : (ea - eb);
+    }
+    const ta = new Date(a.created_time).getTime();
+    const tb = new Date(b.created_time).getTime();
+    return modo === "asc" ? (ta - tb) : (tb - ta);
+  });
+}
+
+function temMidia(post){
+  return coletarMidia(post).length > 0 || !!post.full_picture;
+}
+
+function setTipo(tipo){
+  $("filtroTipo").value = tipo;
+  document.querySelectorAll("#chipsTipo .chip").forEach(c => {
+    c.classList.toggle("on", c.dataset.tipo === tipo);
+  });
+  refazerFiltros();
+}
+
+function aplicarPreset(nome){
+  if(nome === "limpar"){
+    $("filtroStatus").value = "todos";
+    $("filtroTexto").value = "";
+    $("filtroMidia").value = "todos";
+    $("filtroEngMin").value = "0";
+    $("filtroEngMax").value = "";
+    $("ordem").value = "desc";
+    if($("ocultarProtegidos")) $("ocultarProtegidos").checked = false;
+    setTipo("todos");
+    return;
+  }
+  if(nome === "fotos"){ $("filtroStatus").value = "pendente"; $("filtroMidia").value = "todos"; setTipo("foto"); return; }
+  if(nome === "videos"){ $("filtroStatus").value = "pendente"; setTipo("video"); return; }
+  if(nome === "texto"){ $("filtroStatus").value = "pendente"; $("filtroMidia").value = "sem"; setTipo("texto"); return; }
+  if(nome === "baixo"){
+    $("filtroStatus").value = "pendente";
+    $("filtroEngMin").value = "0";
+    $("filtroEngMax").value = "9";
+    $("ordem").value = "eng-asc";
+    setTipo("todos");
+    return;
+  }
+  if(nome === "apagaveis"){
+    $("filtroStatus").value = "pendente";
+    if($("ocultarProtegidos")) $("ocultarProtegidos").checked = true;
+    setTipo("todos");
+  }
+}
+
+function postsFiltrados(){
+  const f = $("filtroStatus").value;
+  const tipo = $("filtroTipo")?.value || "todos";
+  const q = ($("filtroTexto")?.value || "").trim().toLowerCase();
+  const midia = $("filtroMidia")?.value || "todos";
+  const engMin = Math.max(0, parseInt($("filtroEngMin")?.value || "0", 10) || 0);
+  const engMaxRaw = ($("filtroEngMax")?.value || "").trim();
+  const engMax = engMaxRaw === "" ? null : Math.max(0, parseInt(engMaxRaw, 10) || 0);
+  const ocultarProt = !!$("ocultarProtegidos")?.checked;
+
+  return posts.filter(p=>{
+    const prot = ehProtegido(p);
+    if(ocultarProt && prot) return false;
+    if(f === "pendente" && !(p.status === "pendente" && !prot)) return false;
+    if(f === "apagado" && p.status !== "apagado") return false;
+    if(f === "falhou" && p.status !== "falhou") return false;
+    if(f === "protegido" && !prot) return false;
+    if(tipo !== "todos" && tipoCategoria(p) !== tipo) return false;
+    if(midia === "com" && !temMidia(p)) return false;
+    if(midia === "sem" && temMidia(p)) return false;
+    const eng = engajamento(p).total;
+    if(eng < engMin) return false;
+    if(engMax !== null && eng > engMax) return false;
+    if(q){
+      const texto = ((p.message||"")+" "+(p.story||"")).toLowerCase();
+      if(!texto.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function atualizarResumoFiltros(){
+  const filtrados = posts.length ? postsFiltrados() : [];
+  const apag = filtrados.filter(p => podeApagar(p)).length;
+  const prot = filtrados.filter(p => ehProtegido(p)).length;
+  if($("filtCount")) $("filtCount").textContent = String(filtrados.length);
+  if($("filtApagaveis")) $("filtApagaveis").textContent = String(apag);
+  if($("filtProt")) $("filtProt").textContent = String(prot);
+
+  // contadores por tipo (sobre todos os posts carregados)
+  const cont = {todos: posts.length, foto:0, video:0, texto:0, link:0};
+  posts.forEach(p => { cont[tipoCategoria(p)] = (cont[tipoCategoria(p)]||0)+1; });
+  if($("nTodos")) $("nTodos").textContent = String(cont.todos);
+  if($("nFoto")) $("nFoto").textContent = String(cont.foto);
+  if($("nVideo")) $("nVideo").textContent = String(cont.video);
+  if($("nTexto")) $("nTexto").textContent = String(cont.texto);
+  if($("nLink")) $("nLink").textContent = String(cont.link);
+
+  const tags = [];
+  const tipo = $("filtroTipo")?.value;
+  if(tipo && tipo !== "todos") tags.push(tipo);
+  const st = $("filtroStatus")?.value;
+  if(st && st !== "todos") tags.push(st);
+  const mid = $("filtroMidia")?.value;
+  if(mid && mid !== "todos") tags.push(mid === "com" ? "com mídia" : "sem mídia");
+  const q = ($("filtroTexto")?.value || "").trim();
+  if(q) tags.push(`“${q}”`);
+  const emin = parseInt($("filtroEngMin")?.value||"0",10)||0;
+  const emax = ($("filtroEngMax")?.value||"").trim();
+  if(emin > 0 || emax !== "") tags.push(`eng ${emin}–${emax||"∞"}`);
+  if($("ocultarProtegidos")?.checked) tags.push("ocultar protegidos");
+  const box = $("filtTags");
+  if(box) box.innerHTML = tags.length
+    ? tags.map(t => `<span class="filt-tag">${escapar(t)}</span>`).join("")
+    : `<span class="filt-tag">nenhum filtro extra</span>`;
+}
+
+function porPagina(){
+  return Math.max(1, parseInt($("porPagina").value, 10) || 20);
+}
+
+function totalPaginas(){
+  return Math.max(1, Math.ceil(postsFiltrados().length / porPagina()) || 1);
+}
+
+function aplicarOrdem(){
+  ordenarPosts();
+  paginaAtual = 1;
+  renderizar({scroll:false});
+}
+
+function mudarPorPagina(){
+  paginaAtual = 1;
+  renderizar({scroll:false});
+}
+
+function refazerFiltros(){
+  paginaAtual = 1;
+  if(posts.length) renderizar({scroll:false});
+  else atualizarResumoFiltros();
+}
+
+function mudarFiltroStatus(){ refazerFiltros(); }
+
+function irParaPagina(n){
+  paginaAtual = Math.min(Math.max(1, n), totalPaginas());
+  renderizar({scroll:false});
+  $("lista").scrollIntoView({behavior:"smooth", block:"start"});
+}
+
+async function buscarPosts(){
+  $("btnBuscar").disabled = true;
+  $("statusBusca").className = "status";
+  $("statusBusca").textContent = "Buscando…";
+  posts = [];
+  selecionadosIds = new Set();
+  paginaAtual = 1;
+  $("cardLista").classList.add("hidden");
+  $("cardExec").classList.add("hidden");
+
+  const params = new URLSearchParams({
+    access_token: PAGE_TOKEN,
+    fields: CAMPOS_POST,
+    limit: "100"
+  });
+
+  const modoPeriodo = modoAtual() === "periodo";
+  if(modoPeriodo){
+    const ini = $("dtInicio").value;
+    const fim = $("dtFim").value;
+    if(!ini || !fim){
+      $("statusBusca").textContent = "No modo período, preencha as duas datas (De e Até).";
+      $("statusBusca").className = "status error";
+      $("btnBuscar").disabled = false;
+      $("painelPeriodo").classList.remove("hidden");
+      return;
+    }
+    if(ini > fim){
+      $("statusBusca").textContent = "A data 'De' não pode ser depois da data 'Até'.";
+      $("statusBusca").className = "status error";
+      $("btnBuscar").disabled = false;
+      return;
+    }
+    params.set("since", ini + "T00:00:00");
+    params.set("until", fim + "T23:59:59");
+    $("statusBusca").textContent = `Buscando período ${ini.split("-").reverse().join("/")} → ${fim.split("-").reverse().join("/")}…`;
+  }
+
+  let url = `${GRAPH}/${PAGE_ID}/posts?` + params.toString();
+
+  try{
+    while(url){
+      const resp = await fetch(url);
+      const dados = await resp.json();
+      if(dados.error) throw new Error(dados.error.message);
+      const lote = (dados.data || []).map(p => ({...p, status:"pendente", erro:null}));
+      posts.push(...lote);
+      $("statusBusca").textContent = `Buscando… ${posts.length} encontradas`;
+      url = dados.paging?.next || null;
+    }
+  }catch(e){
+    $("statusBusca").textContent = "Erro: " + e.message;
+    $("statusBusca").className = "status error";
+    $("btnBuscar").disabled = false;
+    return;
+  }
+
+  ordenarPosts();
+  atualizarProtecoes();
+  $("btnBuscar").disabled = false;
+  $("statusBusca").textContent = "";
+  renderizar();
+}
+
+function renderizar({scroll=true}={}){
+  const lista = $("lista");
+  lista.innerHTML = "";
+  const filtrados = postsFiltrados();
+  const pages = totalPaginas();
+  if(paginaAtual > pages) paginaAtual = pages;
+
+  const inicio = (paginaAtual - 1) * porPagina();
+  const pagina = filtrados.slice(inicio, inicio + porPagina());
+
+  if(filtrados.length === 0){
+    lista.innerHTML = '<div class="status">Nenhuma publicação neste filtro.</div>';
+  }
+
+  pagina.forEach((p)=>{
+    const motivo = ehProtegido(p);
+    const texto = p.message || p.story || "";
+    const jaApagado = p.status === "apagado";
+    const falhou = p.status === "falhou";
+    const elegivel = podeApagar(p) && !executando;
+    const marcado = selecionadosIds.has(p.id);
+    const eng = engajamento(p);
+    const div = document.createElement("div");
+    div.className = "post"
+      + (motivo ? " protected" : "")
+      + (jaApagado ? " deleted" : "")
+      + (falhou ? " failed" : "");
+    div.innerHTML = `
+      <input type="checkbox" data-id="${escapar(p.id)}"
+        ${elegivel ? "" : "disabled"}
+        ${marcado && elegivel ? "checked" : ""}
+        onchange="toggleSelecao(this)">
+      <div class="body">
+        <div class="date">${p.created_time.slice(0,10).split("-").reverse().join("/")} · ${p.created_time.slice(11,16)}${p.is_published===false?" · agendado/não publicado":""}</div>
+        <div class="msg ${texto ? "" : "empty"}">${texto ? escapar(texto.slice(0,180)) + (texto.length>180?"…":"") : "(sem texto — mídia ou link)"}</div>
+        ${htmlMidia(p)}
+        <div class="eng-line">👍 ${eng.reacoes} · 💬 ${eng.comentarios} · ↗ ${eng.shares} · total ${eng.total}</div>
+        <div class="meta-row">
+          ${statusBadge(p)}
+          ${motivo ? "" : `<span class="badge type">${tipoLegivel(p)}</span>`}
+        </div>
+        ${falhou && p.erro ? `<div class="hint" style="color:var(--danger);margin-top:4px">${escapar(p.erro)}</div>` : ""}
+        ${p.permalink_url && !jaApagado ? `<br><a class="plink" href="${p.permalink_url}" target="_blank" rel="noopener">ver no Facebook ↗</a>` : ""}
+      </div>`;
+    lista.appendChild(div);
+  });
+
+  // pager
+  const pager = $("pager");
+  const de = filtrados.length ? inicio + 1 : 0;
+  const ate = Math.min(inicio + porPagina(), filtrados.length);
+  let botoes = "";
+  const janela = 5;
+  let iniP = Math.max(1, paginaAtual - Math.floor(janela/2));
+  let fimP = Math.min(pages, iniP + janela - 1);
+  iniP = Math.max(1, fimP - janela + 1);
+  for(let n = iniP; n <= fimP; n++){
+    botoes += `<button class="btn-page ${n===paginaAtual?"active":""}" onclick="irParaPagina(${n})" ${n===paginaAtual?"disabled":""}>${n}</button>`;
+  }
+  pager.innerHTML = `
+    <div class="info">Mostrando <b>${de}–${ate}</b> de <b>${filtrados.length}</b> · página <b>${paginaAtual}</b>/${pages}</div>
+    <div class="pages">
+      <button class="btn-page" onclick="irParaPagina(1)" ${paginaAtual<=1?"disabled":""}>«</button>
+      <button class="btn-page" onclick="irParaPagina(${paginaAtual-1})" ${paginaAtual<=1?"disabled":""}>‹</button>
+      ${botoes}
+      <button class="btn-page" onclick="irParaPagina(${paginaAtual+1})" ${paginaAtual>=pages?"disabled":""}>›</button>
+      <button class="btn-page" onclick="irParaPagina(${pages})" ${paginaAtual>=pages?"disabled":""}>»</button>
+    </div>`;
+
+  $("cardLista").classList.remove("hidden");
+  atualizarSelecao();
+  atualizarResumoFiltros();
+  if(scroll) $("cardLista").scrollIntoView({behavior:"smooth"});
+}
+
+function escapar(s){
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+function postsApagaveis(){
+  return postsFiltrados().filter(p => podeApagar(p) && !ehProtegido(p));
+}
+
+function postsApagaveisTodos(){
+  return posts.filter(p => podeApagar(p) && !ehProtegido(p));
+}
+
+function toggleSelecao(cb){
+  const id = cb.dataset.id;
+  const post = posts.find(p => p.id === id);
+  // Trava: nunca selecionar capa/perfil
+  if(!post || !podeApagar(post) || ehProtegido(post)){
+    cb.checked = false;
+    selecionadosIds.delete(id);
+    atualizarSelecao();
+    return;
+  }
+  if(cb.checked) selecionadosIds.add(id);
+  else selecionadosIds.delete(id);
+  atualizarSelecao();
+}
+
+/** Marca/desmarca TODAS as postagens elegíveis do FILTRO atual. */
+function marcarTodos(v){
+  if(v){
+    selecionadosIds.clear();
+    const elegiveis = postsApagaveis();
+    for(const p of elegiveis){
+      selecionadosIds.add(p.id);
+    }
+    console.log("[limpador] Marcadas do filtro:", selecionadosIds.size, "de", elegiveis.length);
+  }else{
+    selecionadosIds.clear();
+  }
+  renderizar({scroll:false});
+}
+
+function selecionados(){
+  // Sempre pelo Set global — cobre todas as páginas
+  return posts.filter(p =>
+    selecionadosIds.has(p.id) && podeApagar(p) && !ehProtegido(p)
+  );
+}
+
+function atualizarSelecao(){
+  // Limpa IDs inválidos (protegidos / já apagados)
+  for(const id of [...selecionadosIds]){
+    const p = posts.find(x => x.id === id);
+    if(!p || !podeApagar(p) || ehProtegido(p)) selecionadosIds.delete(id);
+  }
+  const n = selecionadosIds.size;
+  const apagaveis = postsApagaveis().length;
+  const pages = totalPaginas();
+
+  $("btnApagar").disabled = n === 0 || executando;
+  const top = $("btnApagarTop");
+  if(top) top.disabled = n === 0 || executando;
+
+  const banner = $("selBanner");
+  if(banner){
+    banner.classList.toggle("on", n > 0);
+    $("selNum").textContent = String(n);
+    $("selTotal").textContent = String(apagaveis);
+  }
+
+  $("contagem").innerHTML =
+    `<b>${posts.length}</b> no total · ` +
+    `<b style="color:var(--accent-dark)">${n}</b> selecionadas (todas as páginas) · ` +
+    `<b>${posts.filter(p => p.status==="pendente" && !ehProtegido(p)).length}</b> não apagadas · ` +
+    `<b>${posts.filter(p => p.status==="apagado").length}</b> apagadas · ` +
+    `<b>${posts.filter(p => p.status==="falhou").length}</b> falhas · ` +
+    `<b>${posts.filter(p => ehProtegido(p)).length}</b> protegidas`;
+
+  if(n === 0){
+    $("statusSel").textContent = "";
+  }else if(n === apagaveis){
+    $("statusSel").textContent =
+      `TODAS as ${n} publicações apagáveis estão selecionadas (${pages} páginas). Capa/perfil fora.`;
+  }else{
+    $("statusSel").textContent =
+      `${n} de ${apagaveis} selecionadas em TODAS as páginas (${pages} pág.) — capa/perfil nunca entram`;
+  }
+}
+
+function abrirConfirmacao(){
+  const n = selecionados().length;
+  if(!n) return;
+  $("modalTexto").textContent =
+    `${n} publicaç${n>1?"ões serão apagadas":"ão será apagada"} permanentemente. Antes disso o backup JSON baixa automaticamente. Capa/perfil, recentes e alto engajamento ficam de fora. Não dá para desfazer.`;
+  $("confirmInput").value = "";
+  $("modal").classList.remove("hidden");
+  $("confirmInput").focus();
+}
+function fecharModal(){ $("modal").classList.add("hidden"); }
+
+const pausa = ms => new Promise(r => setTimeout(r, ms));
+
+function logar(msg, cls){
+  const log = $("log");
+  const linha = document.createElement("div");
+  if(cls) linha.className = cls;
+  linha.textContent = msg;
+  log.appendChild(linha);
+  log.scrollTop = log.scrollHeight;
+}
+
+function snapshotBackup(lista){
+  return lista.map(p => {
+    const eng = engajamento(p);
+    return {
+      id: p.id,
+      created_time: p.created_time,
+      message: p.message || null,
+      story: p.story || null,
+      permalink_url: p.permalink_url || null,
+      full_picture: p.full_picture || null,
+      status_type: p.status_type || null,
+      tipo: tipoCategoria(p),
+      is_published: p.is_published !== false,
+      engajamento: eng,
+      attachments: p.attachments || null
+    };
+  });
+}
+
+function baixarJson(nome, dados){
+  const blob = new Blob([JSON.stringify(dados, null, 2)], {type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = nome;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function baixarBackupSelecionados(){
+  const alvo = selecionados();
+  if(!alvo.length){
+    alert("Selecione publicações para gerar o backup.");
+    return;
+  }
+  const agora = new Date().toISOString().slice(0,19).replace(/[:T]/g,"-");
+  baixarJson(`backup-ex-ladrao-${agora}.json`, {
+    pagina: "EX Ladrão",
+    page_id: PAGE_ID,
+    gerado_em: new Date().toISOString(),
+    total: alvo.length,
+    posts: snapshotBackup(alvo)
+  });
+}
+
+async function deletarLote(ids){
+  const batch = ids.map(id => ({method:"DELETE", relative_url: String(id)}));
+  const body = new URLSearchParams({
+    access_token: PAGE_TOKEN,
+    batch: JSON.stringify(batch)
+  });
+  const resp = await fetch(`${GRAPH}/`, {
+    method: "POST",
+    headers: {"Content-Type":"application/x-www-form-urlencoded"},
+    body
+  });
+  const arr = await resp.json();
+  if(!Array.isArray(arr)){
+    if(arr.error) throw new Error(arr.error.message);
+    throw new Error("Resposta de lote inválida");
+  }
+  return arr.map((item, i) => {
+    let parsed = {};
+    try{ parsed = JSON.parse(item.body || "{}"); }catch(_){ }
+    const rate = item.code === 403 || (parsed.error && [4,17,32,613].includes(parsed.error.code));
+    return {
+      id: ids[i],
+      ok: item.code === 200 && !!parsed.success,
+      erro: parsed.error?.message || (item.code !== 200 ? `HTTP ${item.code}` : null),
+      code: parsed.error?.code,
+      rate
+    };
+  });
+}
+
+async function deletarUm(id){
+  const resp = await fetch(`${GRAPH}/${id}?access_token=${encodeURIComponent(PAGE_TOKEN)}`,
+    {method:"DELETE"});
+  return resp.json();
+}
+
+async function executarExclusao(){
+  if($("confirmInput").value.trim() !== "APAGAR"){
+    $("confirmInput").style.outline = "2px solid var(--danger)";
+    return;
+  }
+  fecharModal();
+
+  const alvo = selecionados().filter(p => !ehProtegido(p) && podeApagar(p));
+  if(!alvo.length){
+    $("statusSel").textContent = "Nada para apagar (protegidos nunca entram).";
+    return;
+  }
+
+  // Backup automático antes de apagar
+  const agora = new Date().toISOString().slice(0,19).replace(/[:T]/g,"-");
+  baixarJson(`backup-antes-apagar-${agora}.json`, {
+    pagina: "EX Ladrão",
+    page_id: PAGE_ID,
+    gerado_em: new Date().toISOString(),
+    total: alvo.length,
+    posts: snapshotBackup(alvo)
+  });
+
+  executando = true;
+  $("btnApagar").disabled = true;
+  $("btnBuscar").disabled = true;
+  $("cardExec").classList.remove("hidden");
+  $("log").innerHTML = "";
+  logar(`Backup JSON baixado (${alvo.length} itens). Iniciando exclusão em lotes de ${BATCH_SIZE}…`, "ok");
+  $("cardExec").scrollIntoView({behavior:"smooth"});
+  renderizar({scroll:false});
+
+  let ok = 0, falha = 0, ignorados = 0;
+
+  for(let i = 0; i < alvo.length; i += BATCH_SIZE){
+    const fatia = alvo.slice(i, i + BATCH_SIZE).filter(p => {
+      if(ehProtegido(p)){
+        ignorados++;
+        selecionadosIds.delete(p.id);
+        logar(`[${i+1}] BLOQUEADO — ${ehProtegido(p)}`, "warn");
+        return false;
+      }
+      return true;
+    });
+    if(!fatia.length) continue;
+
+    const fim = Math.min(i + BATCH_SIZE, alvo.length);
+    $("statusExec").textContent = `Apagando lote ${i+1}–${fim} de ${alvo.length}…`;
+    $("barra").style.width = (fim/alvo.length*100) + "%";
+
+    try{
+      let resultados = await deletarLote(fatia.map(p => p.id));
+      if(resultados.some(r => r.rate)){
+        logar(`Limite da API — aguardando 60s e tentando o lote de novo…`, "warn");
+        $("statusExec").textContent = "Pausa 60s (limite da API)…";
+        await pausa(60*1000);
+        resultados = await deletarLote(fatia.map(p => p.id));
+      }
+      resultados.forEach((r, idx) => {
+        const p = fatia[idx];
+        if(r.ok){
+          ok++;
+          p.status = "apagado";
+          p.erro = null;
+          selecionadosIds.delete(p.id);
+          logar(`[${i+idx+1}/${alvo.length}] apagada — ${p.created_time.slice(0,10)}`, "ok");
+        }else{
+          falha++;
+          p.status = "falhou";
+          p.erro = r.erro || "erro desconhecido";
+          logar(`[${i+idx+1}/${alvo.length}] falhou: ${p.erro}`, "err");
+        }
+      });
+    }catch(e){
+      // fallback um a um se batch falhar
+      logar(`Lote falhou (${e.message}) — tentando um a um…`, "warn");
+      for(let j = 0; j < fatia.length; j++){
+        const p = fatia[j];
+        try{
+          let r = await deletarUm(p.id);
+          if(r.error && [4,17,32,613].includes(r.error.code)){
+            await pausa(60*1000);
+            r = await deletarUm(p.id);
+          }
+          if(r.success){
+            ok++; p.status="apagado"; p.erro=null; selecionadosIds.delete(p.id);
+            logar(`[${i+j+1}/${alvo.length}] apagada — ${p.created_time.slice(0,10)}`, "ok");
+          }else{
+            falha++; p.status="falhou"; p.erro=r.error?.message||"erro";
+            logar(`[${i+j+1}/${alvo.length}] falhou: ${p.erro}`, "err");
+          }
+        }catch(err){
+          falha++; p.status="falhou"; p.erro=err.message;
+          logar(`[${i+j+1}/${alvo.length}] erro: ${err.message}`, "err");
+        }
+        await pausa(400);
+      }
+    }
+
+    renderizar({scroll:false});
+    if(fim < alvo.length) await pausa(PAUSA_LOTE_MS);
+  }
+
+  $("statusExec").textContent =
+    `Concluído — ${ok} apagadas, ${falha} falhas` + (ignorados ? `, ${ignorados} bloqueadas` : "") + ".";
+  logar(`\nFim: ${ok} apagadas, ${falha} falhas` + (ignorados ? `, ${ignorados} protegidas` : "") + ".");
+  executando = false;
+  $("btnBuscar").disabled = false;
+  renderizar({scroll:false});
+}
+</script>
+</body>
+</html>

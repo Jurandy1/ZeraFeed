@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="gratis-hero">
+  <div class="wrap">
+    <div class="gratis-pill">TESTE GRÁTIS</div>
+    <h1>Apague até {{ limite_teste }} publicações sem pagar.</h1>
+    <p class="lead">Cria a conta, cola o token da sua Página e já usa. Foto e vídeo aparecem na lista. Capa e foto de perfil não apagam.</p>
+    <p class="gratis-num"><b>{{ limite_teste }}</b> exclusões no teste · depois PIX {{ pix_chave }} + comprovante no WhatsApp</p>
+    <div class="btn-row">
+      <a class="btn-primary btn-lg" href="{{ url_for('cadastro') }}">Começar o teste grátis</a>
+      <a class="btn-ghost" href="{{ url_for('login') }}">Já tenho conta</a>
+    </div>
+  </div>
+</div>
+
+<div class="wrap grid-3">
+  <div class="card">
+    <h2><span class="step-n">1</span> Conta teste</h2>
+    <p>Cadastro livre. Entra no painel na hora. Até {{ limite_teste }} posts.</p>
+  </div>
+  <div class="card">
+    <h2><span class="step-n">2</span> Cole o token</h2>
+    <p>Gera na Meta. O painel mostra foto e vídeo de cada publicação.</p>
+  </div>
+  <div class="card">
+    <h2><span class="step-n">3</span> Quer mais? PIX</h2>
+    <p>PIX para {{ pix_chave }}, manda o comprovante no WhatsApp. A gente libera.</p>
+  </div>
+</div>
+
+<div class="wrap card shield">
+  <div>
+    <strong>Importante.</strong> Só use na Página que você administra. Não pedimos senha do Facebook.
+  </div>
+</div>
+{% endblock %}
