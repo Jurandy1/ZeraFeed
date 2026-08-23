@@ -1,10 +1,5 @@
-<!-- LOVABLE:BEGIN -->
-> [!IMPORTANT]
-> This project is connected to [Lovable](https://lovable.dev). Avoid rewriting
-> published git history — force pushing, or rebasing/amending/squashing commits
-> that are already pushed — as it rewrites history on Lovable's side and the
-> user will likely lose their project history.
->
-> Commits you push to the connected branch sync back to Lovable and show up in
-> the editor, so keep the branch in a working state.
-<!-- LOVABLE:END -->
+# ZeraFeed — notas para agentes
+
+- Não force-push, rebase ou amende commits já publicados no remoto.
+- Não commitar `.env`, `CREDENCIAIS.md` ou chaves `service_role`.
+- Produto público: **ZeraFeed**. Não expor branding ou links de ferramentas de scaffold na UI ou no README voltado a clientes.

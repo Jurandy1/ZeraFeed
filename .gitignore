@@ -16,16 +16,16 @@ dist-ssr
 .nitro
 *.local
 
-# Secrets (ficam só na máquina — ver CREDENCIAIS.md local)
+# Secrets
 .env
 CREDENCIAIS.md
-saas/.env
 
-# Wrangler / Cloudflare
+# Build / platform
 .wrangler/
 .dev.vars
+.lovable/
 
-# Editor directories and files
+# Editor
 .vscode/*
 !.vscode/extensions.json
 .idea

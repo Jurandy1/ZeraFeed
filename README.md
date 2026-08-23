@@ -1,29 +1,33 @@
-# Welcome to your Lovable project
+# ZeraFeed
 
-This project was built with [Lovable](https://lovable.dev).
+SaaS para gestão e limpeza de publicações de Páginas do Facebook.
 
-## Build with Lovable
+## Stack
 
-Open your project in the [Lovable editor](https://lovable.dev) and keep building.
+- TanStack Start + React + Vite + Tailwind
+- Supabase (auth + dados)
+- Deploy: Vercel — https://zera-feed.vercel.app
 
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: connect the project to GitHub and every change made in Lovable is committed straight to your repository.
-- **Full ownership**: this code is yours. Push to your repository and your changes sync back into Lovable, ready for your next prompt.
+## Desenvolvimento
 
-## Development
-
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
-
-```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
+```bash
+cp .env.example .env   # preencha as chaves
+npm install
 npm run dev
 ```
 
-## Built with
+## Variáveis (produção)
 
-- TanStack Start
-- TypeScript
-- React
-- Tailwind CSS
+Veja `.env.example`. Na Vercel, configure no mínimo:
+
+- `VITE_LOCAL_MODE=false`
+- `VITE_SUPABASE_URL` / `VITE_SUPABASE_PUBLISHABLE_KEY`
+- `SUPABASE_URL` / `SUPABASE_PUBLISHABLE_KEY` / `SUPABASE_SERVICE_ROLE_KEY`
+
+## Estrutura
+
+```
+src/           app, rotas, UI, lógica ZeraFeed
+public/        assets estáticos (logo, prints do tutorial)
+supabase/      migrations
+```
