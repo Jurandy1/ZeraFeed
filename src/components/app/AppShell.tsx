@@ -23,21 +23,21 @@ import { BRL } from "@/lib/zerafeed/format";
 import { LOCAL_MODE } from "@/lib/zerafeed/local-config";
 
 const NAV_CLOUD = [
+  { to: "/tutorial", label: "Tutorial", icon: BookOpen },
   { to: "/dashboard", label: "Visão geral", icon: LayoutDashboard },
   { to: "/cleaner", label: "Limpeza", icon: Eraser },
   { to: "/history", label: "Histórico", icon: History },
   { to: "/connections", label: "Conexões", icon: Link2 },
-  { to: "/tutorial", label: "Tutorial", icon: BookOpen },
   { to: "/billing", label: "Assinatura", icon: BadgeDollarSign },
   { to: "/settings", label: "Configurações", icon: Settings },
   { to: "/support", label: "Suporte", icon: LifeBuoy },
 ] as const;
 
 const NAV_LOCAL = [
+  { to: "/tutorial", label: "Tutorial", icon: BookOpen },
   { to: "/cleaner", label: "Limpeza", icon: Eraser },
   { to: "/dashboard", label: "Visão geral", icon: LayoutDashboard },
   { to: "/connections", label: "Conexão", icon: Link2 },
-  { to: "/tutorial", label: "Tutorial", icon: BookOpen },
   { to: "/support", label: "Suporte", icon: LifeBuoy },
 ] as const;
 

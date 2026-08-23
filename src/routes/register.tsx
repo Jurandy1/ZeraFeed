@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { LOCAL_MODE } from "@/lib/zerafeed/local-config";
+import { getAuthEmailRedirectTo } from "@/lib/zerafeed/site-url";
 
 export const Route = createFileRoute("/register")({
   beforeLoad: () => {
@@ -58,7 +59,7 @@ function RegisterPage() {
       email: parsed.data.email,
       password: parsed.data.password,
       options: {
-        emailRedirectTo: `${window.location.origin}/onboarding`,
+        emailRedirectTo: getAuthEmailRedirectTo("/tutorial"),
         data: { full_name: parsed.data.name },
       },
     });
@@ -72,7 +73,7 @@ function RegisterPage() {
       return;
     }
     if (data.session) {
-      navigate({ to: "/onboarding" });
+      navigate({ to: "/tutorial" });
       return;
     }
     setSent(true);
@@ -82,15 +83,20 @@ function RegisterPage() {
     return (
       <AuthLayout
         title="Confirme seu e-mail"
-        subtitle="Enviamos um link de confirmação para o endereço informado. Após confirmar, você entrará direto no onboarding."
+        subtitle="Enviamos um link de confirmação. Ao clicar, você entra no tutorial de conexão da Página."
         footer={
           <Link to="/login" className="font-medium text-primary hover:underline">
             Voltar para o login
           </Link>
         }
       >
-        <div className="panel p-5 text-sm text-muted-foreground">
-          Não recebeu? Verifique a caixa de spam ou tente cadastrar novamente em alguns minutos.
+        <div className="panel space-y-3 p-5 text-sm text-muted-foreground">
+          <p>Não recebeu? Verifique o spam ou tente cadastrar novamente em alguns minutos.</p>
+          <p>
+            O link deve abrir <span className="font-medium text-foreground">zera-feed.vercel.app</span>.
+            Se abrir localhost, no Supabase → Authentication → URL Configuration defina Site URL e Redirect
+            URLs para <code className="text-foreground">https://zera-feed.vercel.app/**</code>.
+          </p>
         </div>
       </AuthLayout>
     );

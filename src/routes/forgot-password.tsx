@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
+import { getAuthEmailRedirectTo } from "@/lib/zerafeed/site-url";
 
 export const Route = createFileRoute("/forgot-password")({
   head: () => ({
@@ -35,7 +36,7 @@ function ForgotPasswordPage() {
     }
     setLoading(true);
     await supabase.auth.resetPasswordForEmail(parsed.data, {
-      redirectTo: `${window.location.origin}/reset-password`,
+      redirectTo: getAuthEmailRedirectTo("/reset-password"),
     });
     setLoading(false);
     setSent(true);

@@ -57,7 +57,7 @@ function LoginPage() {
       return;
     }
     toast.success("Bem-vindo de volta.");
-    navigate({ to: "/dashboard" });
+    navigate({ to: "/tutorial" });
   }
 
   return (

@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
+import { getAuthEmailRedirectTo } from "@/lib/zerafeed/site-url";
 import { updateProfile } from "@/lib/zerafeed/account.functions";
 
 export const Route = createFileRoute("/_authenticated/settings")({
@@ -54,7 +55,7 @@ function SettingsPage() {
   async function onResetPassword() {
     if (!data?.profile.email) return;
     await supabase.auth.resetPasswordForEmail(data.profile.email, {
-      redirectTo: `${window.location.origin}/reset-password`,
+      redirectTo: getAuthEmailRedirectTo("/reset-password"),
     });
     toast.success("Enviamos um link de redefinição para seu e-mail.");
   }
