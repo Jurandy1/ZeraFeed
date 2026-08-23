@@ -39,7 +39,7 @@ function createSupabaseAdminClient() {
 
   if (!SUPABASE_SERVICE_ROLE_KEY) {
     const message =
-      'Missing SUPABASE_SERVICE_ROLE_KEY. Add it in Vercel → Project → Settings → Environment Variables, then Redeploy.';
+      'Operação administrativa indisponível. Clientes não precisam desta chave — o app usa a sessão do usuário.';
     console.error(`[Supabase] ${message}`);
     throw new Error(message);
   }

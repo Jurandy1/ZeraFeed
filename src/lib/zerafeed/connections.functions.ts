@@ -77,8 +77,7 @@ export const connectPage = createServerFn({ method: "POST" })
       .single();
     if (error) throw new Error(error.message);
 
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { error: secretError } = await supabaseAdmin.from("facebook_page_secrets").upsert(
+    const { error: secretError } = await context.supabase.from("facebook_page_secrets").upsert(
       {
         connection_id: (row as ConnectionRow).id,
         user_id: context.userId,

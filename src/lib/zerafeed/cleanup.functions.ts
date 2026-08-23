@@ -5,13 +5,17 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { FREE_DELETE_LIMIT, isUnlimitedPlan } from "./billing";
 import type { DeleteResult, NormalizedPost } from "./types";
 
-async function resolveToken(userId: string, connectionId: string): Promise<{
+async function resolveToken(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  userId: string,
+  connectionId: string,
+): Promise<{
   token: string;
   pageId: string;
   pageName: string | null;
 }> {
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await supabase
     .from("facebook_connections")
     .select("id, facebook_page_id, page_name, facebook_page_secrets(access_token)")
     .eq("id", connectionId)
@@ -62,7 +66,7 @@ export const searchPosts = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => searchSchema.parse(input))
   .handler(async ({ data, context }): Promise<{ posts: NormalizedPost[] }> => {
-    const { token, pageId } = await resolveToken(context.userId, data.connectionId);
+    const { token, pageId } = await resolveToken(context.supabase, context.userId, data.connectionId);
     const { fetchPagePosts } = await import("./graph.server");
     const posts = await fetchPagePosts({
       pageId,
@@ -100,7 +104,7 @@ export const startCleanupJob = createServerFn({ method: "POST" })
       );
     }
 
-    const { pageId, pageName } = await resolveToken(context.userId, data.connectionId);
+    const { pageId, pageName } = await resolveToken(context.supabase, context.userId, data.connectionId);
 
     const { data: job, error } = await context.supabase
       .from("cleanup_jobs")
@@ -167,7 +171,7 @@ export const deleteChunk = createServerFn({ method: "POST" })
       postIds = postIds.slice(0, quota.remaining);
     }
 
-    const { token } = await resolveToken(context.userId, data.connectionId);
+    const { token } = await resolveToken(context.supabase, context.userId, data.connectionId);
     const { deletePosts } = await import("./graph.server");
     const results = await deletePosts(postIds, token);
 
